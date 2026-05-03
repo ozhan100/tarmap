@@ -754,16 +754,6 @@ function setupSearch() {
     const toggleSearchBtn = document.getElementById('toggle-search-btn');
     const showSearchBtn = document.getElementById('show-search');
 
-    let searchTimeout;
-    searchInput.oninput = (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            if (e.target.value.length >= 3) {
-                executeSearch(e.target.value);
-            }
-        }, 800);
-    };
-
     searchBtn.onclick = () => executeSearch(searchInput.value);
     searchInput.onkeypress = (e) => {
         if (e.key === 'Enter') executeSearch(searchInput.value);
