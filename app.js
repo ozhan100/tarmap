@@ -106,7 +106,7 @@ async function handleLogin() {
                 currentUser = data.kullanici_adi;
                 sessionStorage.setItem('isLoggedIn', 'true');
                 sessionStorage.setItem('currentUser', currentUser);
-                
+
                 // Telegram ayarlarını kaydediyoruz
                 if (data.telegram_token) {
                     sessionStorage.setItem('tgToken', data.telegram_token);
@@ -137,7 +137,7 @@ async function handleLogin() {
 async function sendNotification(message) {
     const tgToken = sessionStorage.getItem('tgToken');
     const tgChat = sessionStorage.getItem('tgChat');
-    
+
     if (AUTH_CONFIG.notificationEnabled && tgToken && tgChat) {
         try {
             const url = `https://api.telegram.org/bot${tgToken}/sendMessage`;
@@ -195,7 +195,7 @@ function setupSettings() {
     const openBtn = document.getElementById('open-settings');
     const closeBtn = document.getElementById('close-settings');
     const resetBtn = document.getElementById('reset-defaults');
-    
+
     const csvInput = document.getElementById('local-csv');
     const gmlInput = document.getElementById('local-gml');
     const excelInput = document.getElementById('local-excel');
@@ -203,7 +203,7 @@ function setupSettings() {
     openBtn?.addEventListener('click', () => modal.classList.remove('hidden'));
     closeBtn?.addEventListener('click', () => modal.classList.add('hidden'));
     resetBtn?.addEventListener('click', () => {
-        if(confirm("Varsayılan verilere geri dönmek istiyor musunuz?")) {
+        if (confirm("Varsayılan verilere geri dönmek istiyor musunuz?")) {
             location.reload();
         }
     });
@@ -253,7 +253,7 @@ function setupSettings() {
         const reader = new FileReader();
         reader.onload = (event) => {
             const data = new Uint8Array(event.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
+            const workbook = XLSX.read(data, { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet);
             farmerData = jsonData.map(row => {
@@ -278,7 +278,7 @@ async function loadData() {
 
 function joinFarmerData() {
     if (!parselData.length || !farmerData.length) return;
-    
+
     parselData.forEach(p => {
         const pTC = (p["TC"] || p["TC Kimlik"] || p["T.C. No"] || "").toString().trim();
         const pName = normalizeText(p["İşletme"] || p["Ad Soyad"] || p["Sahibi"]);
@@ -289,7 +289,7 @@ function joinFarmerData() {
 
             const fName = normalizeText(f["ADI/UNVANI"] || f["Ad Soyad"] || f["Adı Soyadı"] || f["İşletme Adı"] || f["ADI SOYADI"]);
             if (pName && fName === pName) return true;
-            
+
             return false;
         });
 
@@ -312,12 +312,12 @@ function parseGML(xmlString) {
         const adaNo = layer.getElementsByTagNameNS("*", "AdaNo")[0]?.textContent?.trim();
         const parselNo = layer.getElementsByTagNameNS("*", "ParselNo")[0]?.textContent?.trim();
         const geom = layer.getElementsByTagNameNS("*", "Geom")[0];
-        
+
         if (!adaNo || !parselNo || !geom) continue;
 
         let coordinates = [];
         const coordNodes = geom.getElementsByTagNameNS("*", "coordinates");
-        
+
         for (let node of coordNodes) {
             const coordString = node.textContent;
             if (coordString) {
@@ -343,7 +343,7 @@ function renderPolygons() {
     // Clear existing polygons from map
     mapPolygons.forEach(p => map.removeLayer(p));
     mapPolygons = [];
-    
+
     const bounds = L.latLngBounds();
 
     gmlFeatures.forEach(feature => {
@@ -353,7 +353,7 @@ function renderPolygons() {
             const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
             return dAda === feature.ada && dParsel === feature.parsel;
         });
-        
+
         const polygon = L.polygon(feature.coords, {
             color: owner ? "#2ecc71" : "#95a5a6",
             weight: 2,
@@ -496,7 +496,7 @@ function drawParselSketch(feature) {
         ctx.fillStyle = '#888';
         ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('Koordinat yok', W/2, H/2);
+        ctx.fillText('Koordinat yok', W / 2, H / 2);
         return;
     }
 
@@ -515,7 +515,7 @@ function drawParselSketch(feature) {
     const padding = 20;
 
     // Scale to canvas with uniform aspect ratio
-    const scale = Math.min((W - padding*2) / lngSpan, (H - padding*2) / latSpan);
+    const scale = Math.min((W - padding * 2) / lngSpan, (H - padding * 2) / latSpan);
 
     // Center offset
     const scaledW = lngSpan * scale;
@@ -560,7 +560,7 @@ function drawParselSketch(feature) {
 
 // ─── Parsel Card Export ────────────────────────────────────────────────────
 
-window.exportParselImage = function() {
+window.exportParselImage = function () {
     const ada = document.getElementById('panel-ada')?.innerText || '?';
     const parsel = document.getElementById('panel-parsel')?.innerText || '?';
 
@@ -604,7 +604,7 @@ window.exportParselImage = function() {
             <span style="font-size:22px;">🌾</span>
             <div>
                 <div style="color:#fff; font-size:16px; font-weight:700;">TarMap — Parsel Kartı</div>
-                <div style="color:rgba(255,255,255,0.85); font-size:11px;">${new Date().toLocaleDateString('tr-TR', {day:'2-digit',month:'long',year:'numeric'})}</div>
+                <div style="color:rgba(255,255,255,0.85); font-size:11px;">${new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
             </div>
             <div style="margin-left:auto; background:rgba(255,255,255,0.25); border-radius:6px; padding:4px 10px; text-align:center;">
                 <div style="color:#fff; font-size:11px; font-weight:600;">ADA / PARSEL</div>
@@ -616,9 +616,9 @@ window.exportParselImage = function() {
         <div style="background:#f8fdf8; padding:12px; text-align:center; border-bottom:1px solid #e8f5e9;">
             <div style="font-size:10px; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px;">Parsel Şekli</div>
             ${sketchDataUrl
-                ? `<img src="${sketchDataUrl}" style="width:180px; height:140px; object-fit:contain;" />`
-                : `<div style="width:180px; height:140px; margin:auto; background:#e8f5e9; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:12px;">Şekil Yok</div>`
-            }
+            ? `<img src="${sketchDataUrl}" style="width:180px; height:140px; object-fit:contain;" />`
+            : `<div style="width:180px; height:140px; margin:auto; background:#e8f5e9; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:12px;">Şekil Yok</div>`
+        }
         </div>
 
         <!-- Info Table -->
@@ -695,15 +695,15 @@ function showExportToast(msg) {
 }
 
 
-window.enableEditMode = function() {
+window.enableEditMode = function () {
     const values = document.querySelectorAll('.detail-value');
     const labels = document.querySelectorAll('.detail-label');
-    
+
     // Skip Ada/Parsel (not editable usually)
     for (let i = 1; i < values.length; i++) {
         const currentVal = values[i].innerText;
         const label = labels[i].innerText;
-        
+
         // Don't edit phone value if it's in the special row, it will be handled by the farmer info
         if (values[i].parentElement.classList.contains('phone-row')) continue;
 
@@ -717,18 +717,18 @@ window.enableEditMode = function() {
     `;
 };
 
-window.cancelEdit = function() {
+window.cancelEdit = function () {
     // Simply re-render
     const activeFeature = gmlFeatures.find(f => f.ada === document.getElementById('panel-ada').innerText && f.parsel === document.getElementById('panel-parsel').innerText);
     const owner = parselData.find(d => d["Ada No"] === activeFeature.ada && d["Parsel No"] === activeFeature.parsel);
     showParselInfo(activeFeature, owner);
 };
 
-window.saveChanges = async function() {
+window.saveChanges = async function () {
     const inputs = document.querySelectorAll('.edit-input');
     const ada = document.getElementById('panel-ada').innerText;
     const parsel = document.getElementById('panel-parsel').innerText;
-    
+
     let report = `📢 *SAHA GÜNCELLEME TALEBİ*\n`;
     report += `📍 *Parsel:* ${ada}/${parsel}\n`;
     report += `👤 *Kullanıcı:* ${currentUser}\n\n`;
@@ -754,6 +754,16 @@ function setupSearch() {
     const toggleSearchBtn = document.getElementById('toggle-search-btn');
     const showSearchBtn = document.getElementById('show-search');
 
+    let searchTimeout;
+    searchInput.oninput = (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            if (e.target.value.length >= 3) {
+                executeSearch(e.target.value);
+            }
+        }, 800);
+    };
+
     searchBtn.onclick = () => executeSearch(searchInput.value);
     searchInput.onkeypress = (e) => {
         if (e.key === 'Enter') executeSearch(searchInput.value);
@@ -774,16 +784,16 @@ function setupSearch() {
 function normalizeText(text) {
     if (!text) return "";
     let str = text.toString();
-    
+
     // Turkish specific manual mapping for maximum reliability
     const mapping = {
         'İ': 'i', 'I': 'ı', 'Ş': 'ş', 'Ğ': 'ğ', 'Ü': 'ü', 'Ö': 'ö', 'Ç': 'ç',
         'i': 'i', 'ı': 'ı', 'ş': 'ş', 'ğ': 'ğ', 'ü': 'ü', 'ö': 'ö', 'ç': 'ç'
     };
-    
+
     str = str.replace(/[İIŞĞÜÖÇ]/g, (letter) => mapping[letter] || letter.toLowerCase());
     str = str.toLowerCase(); // Fallback for other characters
-    
+
     return str.replace(/\s+/g, ' ').trim();
 }
 
@@ -792,7 +802,7 @@ function executeSearch(query) {
     const normalizedQuery = normalizeText(query);
 
     let results = [];
-    
+
     // Pattern 1: köy hamzabey ada 101,102 parsel 43,44
     if (normalizedQuery.includes('ada') && normalizedQuery.includes('parsel')) {
         const villageMatch = normalizedQuery.match(/köy\s+([^\s]+)/);
@@ -802,7 +812,7 @@ function executeSearch(query) {
         if (adaMatch && parselMatch) {
             const adas = adaMatch[1].split(',');
             const parsels = parselMatch[1].split(',');
-            
+
             for (let i = 0; i < adas.length; i++) {
                 const ada = adas[i].trim();
                 const parsel = parsels[i] ? parsels[i].trim() : null;
@@ -812,13 +822,13 @@ function executeSearch(query) {
                 }
             }
         }
-    } 
+    }
     // Pattern 2: köy hamzabey isim hasan doğan ürün üzüm
     else if (normalizedQuery.includes('isim') || normalizedQuery.includes('ürün')) {
-    // All regex operations should be on the normalizedQuery to avoid case issues
-    const villageMatch = normalizedQuery.match(/köy\s+(.*?)(?=\s+isim|\s+ürün|$)/);
-    const nameMatch = normalizedQuery.match(/isim\s+(.*?)(?=\s+ürün|$)/);
-    const productMatch = normalizedQuery.match(/ürün\s+(.*)/);
+        // All regex operations should be on the normalizedQuery to avoid case issues
+        const villageMatch = normalizedQuery.match(/köy\s+(.*?)(?=\s+isim|\s+ürün|$)/);
+        const nameMatch = normalizedQuery.match(/isim\s+(.*?)(?=\s+ürün|$)/);
+        const productMatch = normalizedQuery.match(/ürün\s+(.*)/);
 
         const village = villageMatch ? normalizeText(villageMatch[1]) : null;
         const name = nameMatch ? normalizeText(nameMatch[1]) : null;
@@ -828,20 +838,25 @@ function executeSearch(query) {
         const fallbackName = (!village && !name && !product) ? normalizedQuery : null;
 
         results = gmlFeatures.filter(f => {
-            const owner = parselData.find(d => d["Ada No"] === f.ada && d["Parsel No"] === f.parsel);
+            const owner = parselData.find(d => {
+                const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+                const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+                return dAda === f.ada && dParsel === f.parsel;
+            });
             if (!owner) return false;
 
             let match = true;
-            if (village && !normalizeText(owner["Köy"]).includes(village)) match = false;
+            if (village && !normalizeText(owner["Köy"] || owner["KÖY"] || "").includes(village)) match = false;
             
             if (name) {
-                if (!normalizeText(owner["İşletme"]).includes(name)) match = false;
+                if (!normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(name)) match = false;
             } else if (fallbackName) {
-                if (!normalizeText(owner["İşletme"]).includes(fallbackName)) match = false;
+                if (!normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(fallbackName)) match = false;
             }
             
             if (product) {
-                const cleanProductData = normalizeText(owner["Ürün"].split('(')[0]);
+                const productVal = (owner["Ürün"] || owner["ÜRÜN"] || "").toString();
+                const cleanProductData = normalizeText(productVal.split('(')[0]);
                 if (!cleanProductData.includes(product)) match = false;
             }
             
@@ -857,15 +872,20 @@ function executeSearch(query) {
                 // Better would be to store ref in feature
                 return p.getBounds().getCenter().lat.toFixed(6) === L.polygon(f.coords).getBounds().getCenter().lat.toFixed(6);
             });
-            
+
             // Re-find based on ada/parsel which is more reliable
             const foundPoly = mapPolygons.find(p => p._ada === f.ada && p._parsel === f.parsel);
-            
+
             if (foundPoly) {
                 bounds.extend(foundPoly.getBounds());
                 foundPoly.setStyle({ color: '#f1c40f', weight: 4, fillOpacity: 0.7 });
                 setTimeout(() => {
-                    foundPoly.setStyle({ color: parselData.find(d => d["Ada No"] === f.ada && d["Parsel No"] === f.parsel) ? "#2ecc71" : "#95a5a6", weight: 2, fillOpacity: 0.25 });
+                    const isOwner = parselData.some(d => {
+                        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+                        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+                        return dAda === f.ada && dParsel === f.parsel;
+                    });
+                    foundPoly.setStyle({ color: isOwner ? "#2ecc71" : "#95a5a6", weight: 2, fillOpacity: 0.25 });
                 }, 5000);
             }
         });
@@ -877,7 +897,7 @@ function executeSearch(query) {
 
 function setupTools() {
     closePanelBtn.onclick = () => infoPanel.classList.add('hidden');
-    
+
     document.getElementById('logout-button').onclick = () => {
         sessionStorage.removeItem('isLoggedIn');
         location.reload();
@@ -980,7 +1000,7 @@ function updateToolButtons() {
 
 function addMeasurePoint(latlng) {
     measurePath.push(latlng);
-    
+
     L.circleMarker(latlng, {
         radius: 4,
         fillColor: "white",
@@ -1003,7 +1023,7 @@ function addMeasurePoint(latlng) {
         const polygon = L.polygon(measurePath, { color: "#f1c40f", weight: 2, fillColor: "#f1c40f", fillOpacity: 0.35 }).addTo(measureLayer);
         if (measurePath.length >= 3) {
             const area = calculateArea(measurePath);
-            measureText.innerText = `Alan: ${area.toFixed(2)} m² (${(area/1000).toFixed(2)} dönüm)`;
+            measureText.innerText = `Alan: ${area.toFixed(2)} m² (${(area / 1000).toFixed(2)} dönüm)`;
         }
     }
 }
@@ -1011,7 +1031,7 @@ function addMeasurePoint(latlng) {
 function calculateDistance(path) {
     let total = 0;
     for (let i = 0; i < path.length - 1; i++) {
-        total += path[i].distanceTo(path[i+1]);
+        total += path[i].distanceTo(path[i + 1]);
     }
     return total;
 }

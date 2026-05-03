@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +17,7 @@
     <!-- html2canvas for parcel image export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
+
 <body>
     <!-- Login Screen -->
     <div id="login-screen" class="overlay">
@@ -65,9 +67,13 @@
                 <button id="close-panel">&times;</button>
             </div>
             <!-- Parcel sketch canvas -->
-            <div id="parsel-sketch-wrapper" style="background:#f8fdf8; padding:10px; border-bottom:1px solid rgba(255,255,255,0.1); text-align:center;">
-                <div style="font-size:10px; color:#aaa; text-transform:uppercase; letter-spacing:1px; margin-bottom:5px;">Parsel Şekli</div>
-                <canvas id="parsel-sketch-canvas" width="220" height="150" style="border-radius:6px; background:#0d1f12;"></canvas>
+            <div id="parsel-sketch-wrapper"
+                style="background:#f8fdf8; padding:10px; border-bottom:1px solid rgba(255,255,255,0.1); text-align:center;">
+                <div
+                    style="font-size:10px; color:#aaa; text-transform:uppercase; letter-spacing:1px; margin-bottom:5px;">
+                    Parsel Şekli</div>
+                <canvas id="parsel-sketch-canvas" width="220" height="150"
+                    style="border-radius:6px; background:#0d1f12;"></canvas>
             </div>
             <div class="panel-content" id="parsel-details">
                 <!-- Data will be injected here -->
@@ -101,8 +107,9 @@
                     <button id="close-settings" class="close-btn">&times;</button>
                 </div>
                 <div class="settings-body">
-                    <p class="settings-hint">Cihazınızdan yeni rapor dosyalarını (CSV, GML veya Excel) seçerek haritayı güncelleyebilirsiniz.</p>
-                    
+                    <p class="settings-hint">Cihazınızdan yeni rapor dosyalarını (CSV, GML veya Excel) seçerek haritayı
+                        güncelleyebilirsiniz.</p>
+
                     <div class="file-input-group">
                         <label>1. Harita Verisi (GML)</label>
                         <input type="file" id="local-gml" accept=".gml">
@@ -112,7 +119,7 @@
                         <label>2. Parsel Verisi (CSV)</label>
                         <input type="file" id="local-csv" accept=".csv">
                     </div>
-                    
+
                     <div class="file-input-group">
                         <label>3. Çiftçi Veritabanı (Excel)</label>
                         <input type="file" id="local-excel" accept=".xlsx,.xls">
@@ -130,4 +137,5 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js?v=1.6.0"></script>
 </body>
+
 </html>
