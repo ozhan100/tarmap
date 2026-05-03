@@ -221,11 +221,14 @@ function setupSettings() {
             parselData = parsed.data.map(row => {
                 const newRow = {};
                 for (let key in row) {
-                    newRow[key.trim()] = row[key];
+                    // Clean key from newlines and extra spaces
+                    const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+                    newRow[cleanKey] = row[key] ? row[key].toString().trim() : "";
                 }
                 return newRow;
             });
             joinFarmerData();
+            renderPolygons(); // Re-render to update colors and info
             alert("CSV Verisi Yüklendi!");
         };
         reader.readAsText(file);
@@ -252,8 +255,17 @@ function setupSettings() {
             const data = new Uint8Array(event.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            farmerData = XLSX.utils.sheet_to_json(firstSheet);
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+            farmerData = jsonData.map(row => {
+                const newRow = {};
+                for (let key in row) {
+                    const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+                    newRow[cleanKey] = row[key];
+                }
+                return newRow;
+            });
             joinFarmerData();
+            renderPolygons(); // Re-render to update info on existing parcels
             alert("Çiftçi Veritabanı (Excel) Yüklendi!");
         };
         reader.readAsArrayBuffer(file);
@@ -268,14 +280,14 @@ function joinFarmerData() {
     if (!parselData.length || !farmerData.length) return;
     
     parselData.forEach(p => {
-        const pTC = (p["TC"] || "").toString().trim();
-        const pName = normalizeText(p["İşletme"]);
+        const pTC = (p["TC"] || p["TC Kimlik"] || p["T.C. No"] || "").toString().trim();
+        const pName = normalizeText(p["İşletme"] || p["Ad Soyad"] || p["Sahibi"]);
 
         const farmer = farmerData.find(f => {
-            const fTC = (f["TC_V NO"] || f["TC"] || f["T.C. No"] || "").toString().trim();
+            const fTC = (f["TC_V NO"] || f["TC"] || f["T.C. No"] || f["TC No"] || f["T.C."] || "").toString().trim();
             if (pTC && fTC === pTC) return true;
 
-            const fName = normalizeText(f["ADI/UNVANI"] || f["Ad Soyad"] || f["Adı Soyadı"]);
+            const fName = normalizeText(f["ADI/UNVANI"] || f["Ad Soyad"] || f["Adı Soyadı"] || f["İşletme Adı"] || f["ADI SOYADI"]);
             if (pName && fName === pName) return true;
             
             return false;
@@ -283,7 +295,7 @@ function joinFarmerData() {
 
         if (farmer) {
             p._farmerInfo = farmer;
-            p._phone = farmer["TELEFON"] || farmer["Telefon"] || farmer["Cep Tel"];
+            p._phone = farmer["TELEFON"] || farmer["Telefon"] || farmer["Cep Tel"] || farmer["GSM"] || farmer["CEP TEL"];
         }
     });
 }
@@ -297,8 +309,8 @@ function parseGML(xmlString) {
         const layer = member.getElementsByTagNameNS("*", "Layer1")[0];
         if (!layer) continue;
 
-        const adaNo = layer.getElementsByTagNameNS("*", "AdaNo")[0]?.textContent;
-        const parselNo = layer.getElementsByTagNameNS("*", "ParselNo")[0]?.textContent;
+        const adaNo = layer.getElementsByTagNameNS("*", "AdaNo")[0]?.textContent?.trim();
+        const parselNo = layer.getElementsByTagNameNS("*", "ParselNo")[0]?.textContent?.trim();
         const geom = layer.getElementsByTagNameNS("*", "Geom")[0];
         
         if (!adaNo || !parselNo || !geom) continue;
@@ -328,12 +340,20 @@ function parseGML(xmlString) {
 }
 
 function renderPolygons() {
+    // Clear existing polygons from map
+    mapPolygons.forEach(p => map.removeLayer(p));
+    mapPolygons = [];
+    
     const bounds = L.latLngBounds();
 
     gmlFeatures.forEach(feature => {
-        const owner = parselData.find(d => d["Ada No"] === feature.ada && d["Parsel No"] === feature.parsel);
+        // Robust matching for Ada/Parsel
+        const owner = parselData.find(d => {
+            const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+            const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+            return dAda === feature.ada && dParsel === feature.parsel;
+        });
         
-        // feature.coords is an array of rings for L.polygon
         const polygon = L.polygon(feature.coords, {
             color: owner ? "#2ecc71" : "#95a5a6",
             weight: 2,
