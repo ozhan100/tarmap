@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarla Takip Sistemi</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Leaflet for Maps (No API key needed) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- PapaParse for CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- SheetJS for XLSX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- html2canvas for parcel image export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="overlay">
+        <div class="login-card">
+            <div class="logo-container">
+                <div class="logo-icon">🚜</div>
+                <h1>TarMap</h1>
+                <div class="version-tag" id="login-version">V1.0.0</div>
+            </div>
+            <p>Giriş yapmak için şifrenizi giriniz.</p>
+            <div class="input-group">
+                <input type="text" id="username-input" placeholder="Kullanıcı Adı">
+                <input type="password" id="password-input" placeholder="Şifre">
+                <button id="login-button">Giriş Yap</button>
+            </div>
+            <div id="login-error" class="error-message">Hatalı şifre!</div>
+        </div>
+    </div>
+
+
+
+    <!-- Main Application -->
+    <div id="app" class="hidden">
+        <header class="ui-hidden">
+            <div class="brand">
+                <span class="icon">🌾</span>
+                <span class="title">TarMap</span>
+                <span class="header-version" id="header-version">V1.0.0</span>
+            </div>
+            <div class="controls">
+                <button id="measure-dist" title="Mesafe Ölç" class="tool-btn">📏</button>
+                <button id="measure-area" title="Alan Ölç" class="tool-btn">📐</button>
+                <button id="locate-me" title="Konumuma Git" class="tool-btn">📍</button>
+                <button id="open-settings" title="Veri Yükle" class="tool-btn">⚙️</button>
+                <button id="toggle-header" title="Üst Menüyü Gizle" class="tool-btn">👁️</button>
+                <button id="logout-button" title="Çıkış" class="tool-btn">🔒</button>
+            </div>
+        </header>
+
+        <button id="show-header" class="ui-toggle-btn" title="Menüyü Göster">📋</button>
+
+        <div id="map"></div>
+
+        <div id="info-panel" class="panel hidden">
+            <div class="panel-header">
+                <h3>Parsel Bilgileri</h3>
+                <button id="close-panel">&times;</button>
+            </div>
+            <!-- Parcel sketch canvas -->
+            <div id="parsel-sketch-wrapper" style="background:#f8fdf8; padding:10px; border-bottom:1px solid rgba(255,255,255,0.1); text-align:center;">
+                <div style="font-size:10px; color:#aaa; text-transform:uppercase; letter-spacing:1px; margin-bottom:5px;">Parsel Şekli</div>
+                <canvas id="parsel-sketch-canvas" width="220" height="150" style="border-radius:6px; background:#0d1f12;"></canvas>
+            </div>
+            <div class="panel-content" id="parsel-details">
+                <!-- Data will be injected here -->
+            </div>
+        </div>
+
+        <div id="measure-info" class="measure-toast hidden">
+            <span id="measure-text">Mesafe: 0 m</span>
+            <button id="clear-measure">Temizle</button>
+        </div>
+
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <p>Veriler yükleniyor...</p>
+        </div>
+
+        <div class="search-container ui-hidden" id="search-container">
+            <div class="search-box">
+                <input type="text" id="global-search" placeholder="Örn: köy hamzabey ada 101,102 parsel 43,44">
+                <button id="search-button">Ara</button>
+                <button id="toggle-search-btn" title="Gizle">✖</button>
+            </div>
+        </div>
+        <button id="show-search" class="ui-toggle-btn bottom" title="Aramayı Göster">🔍</button>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="overlay hidden">
+            <div class="settings-card">
+                <div class="settings-header">
+                    <h3>📂 Veri Kaynaklarını Yönet</h3>
+                    <button id="close-settings" class="close-btn">&times;</button>
+                </div>
+                <div class="settings-body">
+                    <p class="settings-hint">Cihazınızdan yeni rapor dosyalarını (CSV, GML veya Excel) seçerek haritayı güncelleyebilirsiniz.</p>
+                    
+                    <div class="file-input-group">
+                        <label>Parsel Verisi (CSV)</label>
+                        <input type="file" id="local-csv" accept=".csv">
+                    </div>
+                    
+                    <div class="file-input-group">
+                        <label>Harita Verisi (GML)</label>
+                        <input type="file" id="local-gml" accept=".gml">
+                    </div>
+                    
+                    <div class="file-input-group">
+                        <label>Çiftçi Veritabanı (Excel)</label>
+                        <input type="file" id="local-excel" accept=".xlsx,.xls">
+                    </div>
+
+                    <div class="settings-footer">
+                        <button id="reset-defaults" class="action-btn-small blue">🌐 Varsayılan Verilere Dön</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+</body>
+</html>
