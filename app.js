@@ -9,7 +9,7 @@ const AUTH_CONFIG = {
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ig4eVjojcsZqRraP8cD5xg_WPdUsBgp';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
 const CSV_FILE = "Halhalca.csv";
@@ -27,25 +27,28 @@ let isMeasuringDist = false;
 let isMeasuringArea = false;
 let measurePath = [];
 let measureShapes = [];
-let measureLayer = L.layerGroup();
+let measureLayer;
 
-// DOM Elements
-const loginScreen = document.getElementById('login-screen');
-const appScreen = document.getElementById('app');
-const loadingOverlay = document.getElementById('loading-overlay');
-const usernameInput = document.getElementById('username-input');
-const passwordInput = document.getElementById('password-input');
-const loginButton = document.getElementById('login-button');
-const loginError = document.getElementById('login-error');
-const infoPanel = document.getElementById('info-panel');
-const parselDetails = document.getElementById('parsel-details');
-const closePanelBtn = document.getElementById('close-panel');
-const measureToast = document.getElementById('measure-info');
-const measureText = document.getElementById('measure-text');
-const clearMeasureBtn = document.getElementById('clear-measure');
+// DOM Elements (initialized after DOM is ready)
+let loginScreen, appScreen, loadingOverlay, usernameInput, passwordInput;
+let loginButton, loginError, infoPanel, parselDetails, closePanelBtn;
+let measureToast, measureText, clearMeasureBtn;
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
+    loginScreen = document.getElementById('login-screen');
+    appScreen = document.getElementById('app');
+    loadingOverlay = document.getElementById('loading-overlay');
+    usernameInput = document.getElementById('username-input');
+    passwordInput = document.getElementById('password-input');
+    loginButton = document.getElementById('login-button');
+    loginError = document.getElementById('login-error');
+    infoPanel = document.getElementById('info-panel');
+    parselDetails = document.getElementById('parsel-details');
+    closePanelBtn = document.getElementById('close-panel');
+    measureToast = document.getElementById('measure-info');
+    measureText = document.getElementById('measure-text');
+    clearMeasureBtn = document.getElementById('clear-measure');
     initAuth();
 });
 
@@ -77,23 +80,27 @@ async function handleLogin() {
 
     loginButton.innerText = "Giriş Yapılıyor...";
     loginButton.disabled = true;
+    loginError.style.display = 'none';
 
     try {
+        console.log("Giriş denemesi:", user);
         // Supabase RPC fonksiyonunu çağırıyoruz
-        const { data, error } = await supabase.rpc('guvenli_giris_yap', {
+        const { data, error } = await supabaseClient.rpc('guvenli_giris_yap', {
             p_kullanici_adi: user,
             p_sifre: pass,
             p_uygulama_adi: 'TarMap'
         });
 
         if (error) {
-            console.error("Giriş hatası:", error);
-            loginError.innerText = "Sistemsel bir hata oluştu!";
+            console.error("Supabase RPC Hatası:", error);
+            loginError.innerText = "Bağlantı Hatası: " + (error.message || "Sunucuya ulaşılamadı.");
             loginError.style.display = 'block';
             return;
         }
 
-        if (data.basarili) {
+        console.log("RPC Yanıtı:", data);
+
+        if (data && data.basarili) {
             // TarMap uygulaması için yetki kontrolü
             if (data.tarmap_yetkisi) {
                 currentUser = data.kullanici_adi;
@@ -112,12 +119,12 @@ async function handleLogin() {
                 loginError.style.display = 'block';
             }
         } else {
-            loginError.innerText = data.mesaj || "Hatalı şifre veya kullanıcı adı!";
+            loginError.innerText = (data && data.mesaj) ? data.mesaj : "Hatalı şifre veya kullanıcı adı!";
             loginError.style.display = 'block';
         }
     } catch (err) {
         console.error("Beklenmeyen hata:", err);
-        loginError.innerText = "Sunucuya bağlanılamadı. (URL ve Key doğru mu?)";
+        loginError.innerText = "Beklenmeyen bir hata oluştu. Lütfen internet bağlantınızı kontrol edin.";
         loginError.style.display = 'block';
     } finally {
         loginButton.innerText = "Giriş Yap";
@@ -125,6 +132,7 @@ async function handleLogin() {
         passwordInput.value = '';
     }
 }
+
 
 async function sendNotification(message) {
     const tgToken = sessionStorage.getItem('tgToken');
@@ -172,7 +180,7 @@ async function initLeafletMap() {
         attribution: 'Google'
     }).addTo(map);
 
-    measureLayer.addTo(map);
+    measureLayer = L.layerGroup().addTo(map);
 
     await loadData();
     setupTools();
@@ -1008,3 +1016,4 @@ function clearMeasurements() {
     measureLayer.clearLayers();
     measureText.innerText = "";
 }
+
