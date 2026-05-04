@@ -758,13 +758,7 @@ window.cancelTespit = function () {
     showParselInfo(activeFeature, owner);
 };
 
-let currentOwnerData = null; // Store for tespit saving
 
-window.showParselInfo = function (feature, owner) {
-    activeFeature = feature;
-    currentOwnerData = owner; // Save globally
-    // ... rest of implementation
-};
 
 window.saveTespit = function () {
     const ada = document.getElementById('panel-ada').innerText;
