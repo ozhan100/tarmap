@@ -28,6 +28,8 @@ let isMeasuringArea = false;
 let measurePath = [];
 let measureShapes = [];
 let measureLayer;
+let activeFeature = null;
+let currentOwnerData = null;
 
 // DOM Elements (initialized after DOM is ready)
 let loginScreen, appScreen, loadingOverlay, usernameInput, passwordInput;
@@ -395,6 +397,8 @@ function renderPolygons() {
 }
 
 function showParselInfo(feature, owner) {
+    activeFeature = feature;
+    currentOwnerData = owner;
     // Find farmer details if possible
     let farmerInfo = null;
     if (owner) {
@@ -459,7 +463,7 @@ function showParselInfo(feature, owner) {
                 <div class="detail-value">${owner["Tarım Şekli"] || "-"}</div>
             </div>
             <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
-                <button onclick="enableEditMode()" class="action-btn-small blue">📝 Bilgi Güncelle</button>
+                <button onclick="enableTespitMode()" class="action-btn-small blue">📋 Tespit Gir</button>
                 <button onclick="exportParselImage()" class="action-btn-small green">📷 Resim Al</button>
             </div>
         ` : `
@@ -468,6 +472,7 @@ function showParselInfo(feature, owner) {
                 <div class="detail-value">Bu parsel için CSV verisi bulunamadı.</div>
             </div>
             <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+                <button onclick="enableTespitMode()" class="action-btn-small blue">📋 Tespit Gir</button>
                 <button onclick="exportParselImage()" class="action-btn-small green">📷 Resim Al</button>
             </div>
         `}
@@ -694,58 +699,213 @@ function showExportToast(msg) {
     toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 3500);
 }
 
+window.enableTespitMode = function () {
+    const ada = document.getElementById('panel-ada').innerText;
+    const parsel = document.getElementById('panel-parsel').innerText;
+    const today = new Date().toLocaleDateString('tr-TR');
 
-window.enableEditMode = function () {
-    const values = document.querySelectorAll('.detail-value');
-    const labels = document.querySelectorAll('.detail-label');
-
-    // Skip Ada/Parsel (not editable usually)
-    for (let i = 1; i < values.length; i++) {
-        const currentVal = values[i].innerText;
-        const label = labels[i].innerText;
-
-        // Don't edit phone value if it's in the special row, it will be handled by the farmer info
-        if (values[i].parentElement.classList.contains('phone-row')) continue;
-
-        values[i].innerHTML = `<input type="text" class="edit-input" value="${currentVal}" data-label="${label}">`;
-    }
-
-    const actions = document.querySelector('.edit-actions');
-    actions.innerHTML = `
-        <button onclick="saveChanges()" class="action-btn-small green">✅ Kaydet ve Bildir</button>
-        <button onclick="cancelEdit()" class="action-btn-small red">❌ İptal</button>
+    parselDetails.innerHTML = `
+        <div class="tespit-form">
+            <div class="tespit-row">
+                <div class="tespit-label">Veri Tabanı</div>
+                <select id="tespit-db" class="tespit-input">
+                    <option value="YB">Yem Bitkisi (YB)</option>
+                    <option value="SF">Sertifikalı Fidan (SF)</option>
+                    <option value="AF">Afet Destek (AF)</option>
+                </select>
+            </div>
+            <div class="tespit-row">
+                <div class="tespit-label">Ada / Parsel</div>
+                <div class="detail-value" style="font-weight:600;">${ada} / ${parsel}</div>
+            </div>
+            <div class="tespit-row">
+                <div class="tespit-label">Tespit Edilen Ürün</div>
+                <input type="text" id="tespit-urun" class="tespit-input" placeholder="Ürün adı giriniz">
+            </div>
+            <div class="tespit-row">
+                <div class="tespit-label">Tespit Alanı (m²)</div>
+                <input type="number" id="tespit-alan" class="tespit-input" placeholder="0">
+            </div>
+            <div class="tespit-row" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+                <div class="tespit-label">Açıklama</div>
+                <textarea id="tespit-aciklama" class="tespit-input" style="width: 100%;" placeholder="Notlarınızı buraya yazın..."></textarea>
+            </div>
+            <div class="tespit-row">
+                <div class="tespit-label">Tespit Yapan</div>
+                <div class="detail-value">${currentUser || 'Bilinmiyor'}</div>
+            </div>
+            <div class="tespit-row">
+                <div class="tespit-label">Tespit Tarihi</div>
+                <div class="detail-value">${today}</div>
+            </div>
+            <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+                <button onclick="saveTespit()" class="action-btn-small green">💾 Kaydet ve İndir</button>
+                <button onclick="cancelTespit()" class="action-btn-small red">❌ İptal</button>
+            </div>
+        </div>
     `;
 };
 
-window.cancelEdit = function () {
-    // Simply re-render
-    const activeFeature = gmlFeatures.find(f => f.ada === document.getElementById('panel-ada').innerText && f.parsel === document.getElementById('panel-parsel').innerText);
-    const owner = parselData.find(d => d["Ada No"] === activeFeature.ada && d["Parsel No"] === activeFeature.parsel);
+window.cancelTespit = function () {
+    const ada = document.getElementById('panel-ada').innerText;
+    const parsel = document.getElementById('panel-parsel').innerText;
+    const activeFeature = gmlFeatures.find(f => f.ada === ada && f.parsel === parsel);
+    const owner = parselData.find(d => {
+        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+        return dAda === ada && dParsel === parsel;
+    });
     showParselInfo(activeFeature, owner);
 };
 
-window.saveChanges = async function () {
-    const inputs = document.querySelectorAll('.edit-input');
+let currentOwnerData = null; // Store for tespit saving
+
+window.showParselInfo = function (feature, owner) {
+    activeFeature = feature;
+    currentOwnerData = owner; // Save globally
+    // ... rest of implementation
+};
+
+window.saveTespit = function () {
     const ada = document.getElementById('panel-ada').innerText;
     const parsel = document.getElementById('panel-parsel').innerText;
+    const dbTag = document.getElementById('tespit-db').value;
+    const urunVal = document.getElementById('tespit-urun').value;
+    const alanVal = document.getElementById('tespit-alan').value;
+    const aciklamaVal = document.getElementById('tespit-aciklama').value;
+    const today = new Date().toLocaleDateString('tr-TR');
+    const todayTime = new Date().toLocaleDateString('tr-TR') + " " + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
-    let report = `📢 *SAHA GÜNCELLEME TALEBİ*\n`;
-    report += `📍 *Parsel:* ${ada}/${parsel}\n`;
-    report += `👤 *Kullanıcı:* ${currentUser}\n\n`;
-    report += `🔄 *Değişiklikler:*\n`;
-
-    inputs.forEach(input => {
-        report += `• *${input.dataset.label}:* ${input.value}\n`;
-    });
-
-    try {
-        await sendNotification(report);
-        alert("Güncelleme talebi admin paneline başarıyla iletildi!");
-        cancelEdit();
-    } catch (err) {
-        alert("Hata: Bildirim gönderilemedi.");
+    if (!urunVal) {
+        alert("Lütfen tespit edilen ürünü giriniz!");
+        return;
     }
+
+    const owner = currentOwnerData || {};
+    let satir = [];
+    let dosyaAdi = "";
+
+    // Calculate phone (mirroring showParselInfo logic exactly)
+    let phone = owner._phone;
+    if (!phone && owner._farmerInfo) {
+        const f = owner._farmerInfo;
+        phone = f["TELEFON"] || f["Telefon"] || f["Cep Tel"] || f["GSM"];
+    }
+    if (!phone && owner._farmerInfo) {
+        phone = Object.values(owner._farmerInfo).find(v => {
+            const s = String(v).replace(/\s/g, "");
+            return /^[0-9]{10,11}$/.test(s);
+        });
+    }
+    phone = phone ? phone.toString().trim() : "---";
+
+    const mahalle = activeFeature?.properties?.Mahalle || activeFeature?.mahalle || owner["Mahalle"] || "---";
+    const kisiAdi = owner["İşletme"] || owner["Adı Soyadı"] || "---";
+    const tcNo = owner["TC"] || owner["T.C. No"] || "---";
+    const originalUrun = owner["Ürün"] || "---";
+    const uretimCesidi = owner["Üretim Çeşidi"] || owner["Üretim Şekli"] || "---";
+    const tarimParselNo = owner["Tarım Parsel No"] || "---";
+    const originalAlan = (owner["Alan"] || owner["ParselAlanı"] || "---").toString().replace(",", ".");
+    const ekimTarihi = owner["Ekim Tarihi"] || "---";
+    const currentYear = new Date().getFullYear().toString();
+
+    if (dbTag === "YB" || dbTag === "SF") {
+        dosyaAdi = dbTag === "YB" ? "YBVeritabani.xlsx" : "SFVeritabani.xlsx";
+        const durum = dbTag === "YB" ? "TAMAM" : "İLK KAYIT";
+
+        // ZiraiParselVeriTabaniOrtak Columns (26 columns)
+        satir = [
+            "otomatik",       // 0: SIRA NO
+            mahalle,          // 1: MAHALLE
+            ada,              // 2: ADA
+            parsel,           // 3: PARSEL
+            tcNo,             // 4: TC KİMLİK NUMARASI
+            kisiAdi,          // 5: KİŞİ ADI
+            originalUrun,     // 6: ÜRÜN
+            uretimCesidi,     // 7: ÜRETİM ÇEŞİDİ
+            tarimParselNo,    // 8: TARIM PARSEL NO
+            originalAlan,     // 9: EKİLİ ALAN
+            originalAlan,     // 10: PARSEL ALANI
+            ekimTarihi,       // 11: EKİM TARİHİ
+            urunVal,          // 12: TESPİT EDİLEN ÜRÜN
+            alanVal,          // 13: TESPİT EDİLEN ÜRÜN ALANI
+            aciklamaVal,      // 14: AÇIKLAMA
+            currentUser,      // 15: TESPİTİ YAPAN PERSONEL
+            todayTime,        // 16: TESPİT TARİHİ
+            phone,            // 17: TELEFON
+            durum,            // 18: DURUM
+            currentYear,      // 19: DÖNEM
+            "---",            // 20: EVRAK KAYIT NO
+            "otomatik",       // 21: KAYIT SIRA NO
+            currentUser,      // 22: İLK KAYIT EDEN
+            todayTime,        // 23: KAYIT TARİHİ
+            currentUser,      // 24: SON DÜZENLEYEN
+            todayTime         // 25: DÜZENLEME TARİHİ
+        ];
+    } else if (dbTag === "AF") {
+        dosyaAdi = "ADVeritabani.xlsx";
+
+        // ADVeritabani Columns (33 columns indexed 0-32)
+        satir = [
+            "otomatik",       // 0: SIRA NO
+            mahalle,          // 1: MAHALLE
+            ada,              // 2: ADA
+            parsel,           // 3: PARSEL
+            tcNo,             // 4: TC KİMLİK NUMARASI
+            kisiAdi,          // 5: KİŞİ ADI
+            originalUrun,     // 6: ÜRÜN
+            uretimCesidi,     // 7: ÜRETİM ÇEŞİDİ
+            tarimParselNo,    // 8: TARIM PARSEL NO
+            originalAlan,     // 9: EKİLİ ALAN
+            originalAlan,     // 10: PARSEL ALANI
+            ekimTarihi,       // 11: EKİM TARİHİ
+            owner["Sigorta"] || "---", // 12: TARSİM DURUMU
+            "---",            // 13: DOĞAL AFETİN ADI
+            today,            // 14: AFET TARİHİ
+            "otomatik",       // 15: KAYIT SIRA NO
+            urunVal,          // 16: ETKİLENEN ÜRÜN
+            alanVal,          // 17: ETKİLENEN ÜRÜN ALANI
+            "---",            // 18: HASAR ORANI
+            "---",            // 19: ÜRÜN DEKAR BAŞI MALİYETİ
+            "---",            // 20: YAPILAN MASRAF TUTARI
+            "---",            // 21: ÜRÜN DEKAR BAŞI VERİM ORANI
+            "---",            // 22: TOPLAM HAKEDİŞ
+            aciklamaVal,      // 23: AÇIKLAMA
+            "Hayır",          // 24: BAKANLIĞA KAYIT DURUMU
+            currentUser,      // 25: TESPİTİ YAPAN PERSONEL
+            todayTime,        // 26: TESPİT TARİHİ
+            phone,            // 27: TELEFON
+            "İLK KAYIT",      // 28: DURUM
+            currentUser,      // 29: İLK KAYIT EDEN
+            todayTime,        // 30: KAYIT TARİHİ
+            currentUser,      // 31: SON DÜZENLEYEN
+            todayTime         // 32: DÜZENLEME TARİHİ
+        ];
+    }
+
+    const sekreterData = {
+        islem: "append",
+        dosya: dosyaAdi,
+        satir: satir
+    };
+
+    const jsonString = JSON.stringify(sekreterData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${dbTag}_tespit_${ada}_${parsel}_${new Date().getTime()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    alert("Tespit dosyası 'Sekreter' formatında oluşturuldu.");
+    cancelTespit();
 };
+
+
 
 function setupSearch() {
     const searchInput = document.getElementById('global-search');
@@ -837,19 +997,19 @@ function executeSearch(query) {
 
             let match = true;
             if (village && !normalizeText(owner["Köy"] || owner["KÖY"] || "").includes(village)) match = false;
-            
+
             if (name) {
                 if (!normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(name)) match = false;
             } else if (fallbackName) {
                 if (!normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(fallbackName)) match = false;
             }
-            
+
             if (product) {
                 const productVal = (owner["Ürün"] || owner["ÜRÜN"] || "").toString();
                 const cleanProductData = normalizeText(productVal.split('(')[0]);
                 if (!cleanProductData.includes(product)) match = false;
             }
-            
+
             return match;
         });
     }
