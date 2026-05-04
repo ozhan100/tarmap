@@ -464,7 +464,6 @@ function showParselInfo(feature, owner) {
             </div>
             <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
                 <button onclick="enableTespitMode()" class="action-btn-small blue">📋 Tespit Gir</button>
-                <button onclick="exportParselImage()" class="action-btn-small green">📷 Resim Al</button>
             </div>
         ` : `
             <div class="detail-item">
@@ -473,230 +472,10 @@ function showParselInfo(feature, owner) {
             </div>
             <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
                 <button onclick="enableTespitMode()" class="action-btn-small blue">📋 Tespit Gir</button>
-                <button onclick="exportParselImage()" class="action-btn-small green">📷 Resim Al</button>
             </div>
         `}
     `;
     infoPanel.classList.remove('hidden');
-
-    // Draw the parcel sketch on canvas after DOM update
-    setTimeout(() => drawParselSketch(feature), 50);
-}
-
-// ─── Parsel Sketch (Canvas) ────────────────────────────────────────────────
-
-function drawParselSketch(feature) {
-    const canvasId = 'parsel-sketch-canvas';
-    let canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-
-    // Collect all coordinate points (first ring only)
-    const ring = feature.coords[0];
-    if (!ring || ring.length < 3) {
-        ctx.fillStyle = '#888';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Koordinat yok', W / 2, H / 2);
-        return;
-    }
-
-    // Find bounding box
-    let minLat = Infinity, maxLat = -Infinity;
-    let minLng = Infinity, maxLng = -Infinity;
-    ring.forEach(([lat, lng]) => {
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
-        if (lng < minLng) minLng = lng;
-        if (lng > maxLng) maxLng = lng;
-    });
-
-    const latSpan = maxLat - minLat || 0.0001;
-    const lngSpan = maxLng - minLng || 0.0001;
-    const padding = 20;
-
-    // Scale to canvas with uniform aspect ratio
-    const scale = Math.min((W - padding * 2) / lngSpan, (H - padding * 2) / latSpan);
-
-    // Center offset
-    const scaledW = lngSpan * scale;
-    const scaledH = latSpan * scale;
-    const offsetX = (W - scaledW) / 2;
-    const offsetY = (H - scaledH) / 2;
-
-    const toCanvas = ([lat, lng]) => ({
-        x: offsetX + (lng - minLng) * scale,
-        y: H - (offsetY + (lat - minLat) * scale)  // flip Y axis
-    });
-
-    // Draw filled polygon
-    ctx.beginPath();
-    const first = toCanvas(ring[0]);
-    ctx.moveTo(first.x, first.y);
-    for (let i = 1; i < ring.length; i++) {
-        const pt = toCanvas(ring[i]);
-        ctx.lineTo(pt.x, pt.y);
-    }
-    ctx.closePath();
-
-    // Fill with soft green
-    ctx.fillStyle = 'rgba(46, 204, 113, 0.25)';
-    ctx.fill();
-
-    // Stroke with darker green
-    ctx.strokeStyle = '#27ae60';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-
-    // Corner dots
-    ring.forEach((pt, i) => {
-        if (i === ring.length - 1) return; // skip closing duplicate
-        const { x, y } = toCanvas(pt);
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = '#27ae60';
-        ctx.fill();
-    });
-}
-
-// ─── Parsel Card Export ────────────────────────────────────────────────────
-
-window.exportParselImage = function () {
-    const ada = document.getElementById('panel-ada')?.innerText || '?';
-    const parsel = document.getElementById('panel-parsel')?.innerText || '?';
-
-    // Build the export card element (off-screen)
-    const card = document.createElement('div');
-    card.id = 'parsel-export-card';
-    card.style.cssText = `
-        position: fixed;
-        top: -9999px; left: -9999px;
-        width: 420px;
-        background: #ffffff;
-        border: 2px solid #27ae60;
-        border-radius: 8px;
-        font-family: 'Outfit', Arial, sans-serif;
-        overflow: hidden;
-        z-index: -1;
-    `;
-
-    // Collect current parsel details from panel
-    const detailItems = document.querySelectorAll('#parsel-details .detail-item');
-    let tableRows = '';
-    detailItems.forEach(item => {
-        const label = item.querySelector('.detail-label')?.innerText || '';
-        const value = item.querySelector('.detail-value')?.innerText || '';
-        if (label && value && label !== 'Ada / Parsel') {
-            tableRows += `
-                <tr>
-                    <td style="padding:5px 8px; font-weight:600; color:#333; border-bottom:1px solid #f0f0f0; white-space:nowrap;">${label}</td>
-                    <td style="padding:5px 8px; color:#555; border-bottom:1px solid #f0f0f0;">${value}</td>
-                </tr>`;
-        }
-    });
-
-    // Get existing canvas image data
-    const existingCanvas = document.getElementById('parsel-sketch-canvas');
-    const sketchDataUrl = existingCanvas ? existingCanvas.toDataURL('image/png') : '';
-
-    card.innerHTML = `
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg,#27ae60,#2ecc71); padding:12px 16px; display:flex; align-items:center; gap:10px;">
-            <span style="font-size:22px;">🌾</span>
-            <div>
-                <div style="color:#fff; font-size:16px; font-weight:700;">TarMap — Parsel Kartı</div>
-                <div style="color:rgba(255,255,255,0.85); font-size:11px;">${new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-            </div>
-            <div style="margin-left:auto; background:rgba(255,255,255,0.25); border-radius:6px; padding:4px 10px; text-align:center;">
-                <div style="color:#fff; font-size:11px; font-weight:600;">ADA / PARSEL</div>
-                <div style="color:#fff; font-size:18px; font-weight:700;">${ada} / ${parsel}</div>
-            </div>
-        </div>
-
-        <!-- Sketch -->
-        <div style="background:#f8fdf8; padding:12px; text-align:center; border-bottom:1px solid #e8f5e9;">
-            <div style="font-size:10px; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px;">Parsel Şekli</div>
-            ${sketchDataUrl
-            ? `<img src="${sketchDataUrl}" style="width:180px; height:140px; object-fit:contain;" />`
-            : `<div style="width:180px; height:140px; margin:auto; background:#e8f5e9; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:12px;">Şekil Yok</div>`
-        }
-        </div>
-
-        <!-- Info Table -->
-        <div style="padding:8px;">
-            <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                ${tableRows || '<tr><td colspan="2" style="padding:8px; color:#999; text-align:center;">Veri bulunamadı</td></tr>'}
-            </table>
-        </div>
-
-        <!-- Footer -->
-        <div style="background:#f5f5f5; padding:6px 16px; font-size:10px; color:#aaa; text-align:right; border-top:1px solid #eee;">
-            TarMap v${APP_VERSION} • Tarla Takip Sistemi
-        </div>
-    `;
-
-    document.body.appendChild(card);
-
-    html2canvas(card, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false
-    }).then(canvas => {
-        document.body.removeChild(card);
-
-        // Try clipboard first (modern browsers)
-        canvas.toBlob(blob => {
-            if (navigator.clipboard && navigator.clipboard.write) {
-                navigator.clipboard.write([
-                    new ClipboardItem({ 'image/png': blob })
-                ]).then(() => {
-                    showExportToast('✅ Resim panoya kopyalandı! Excel\'e Ctrl+V ile yapıştırabilirsiniz.');
-                }).catch(() => {
-                    // Fallback to download
-                    downloadCanvasImage(canvas, ada, parsel);
-                });
-            } else {
-                downloadCanvasImage(canvas, ada, parsel);
-            }
-        }, 'image/png');
-    }).catch(err => {
-        document.body.removeChild(card);
-        console.error('Export error:', err);
-        alert('Resim oluşturulurken hata oluştu: ' + err.message);
-    });
-};
-
-function downloadCanvasImage(canvas, ada, parsel) {
-    const link = document.createElement('a');
-    link.download = `parsel_${ada}_${parsel}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    showExportToast('✅ Resim indirildi! Excel\'e ekleyebilirsiniz.');
-}
-
-function showExportToast(msg) {
-    let toast = document.getElementById('export-toast');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'export-toast';
-        toast.style.cssText = `
-            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-            background: #27ae60; color: #fff; padding: 12px 20px;
-            border-radius: 25px; font-size: 14px; font-weight: 600;
-            z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            transition: opacity 0.4s; white-space: nowrap;
-        `;
-        document.body.appendChild(toast);
-    }
-    toast.innerText = msg;
-    toast.style.opacity = '1';
-    clearTimeout(toast._timer);
-    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 3500);
 }
 
 window.enableTespitMode = function () {
@@ -716,7 +495,7 @@ window.enableTespitMode = function () {
             </div>
             <div class="tespit-row">
                 <div class="tespit-label">Ada / Parsel</div>
-                <div class="detail-value" style="font-weight:600;">${ada} / ${parsel}</div>
+                <div class="tespit-value-display">${ada} / ${parsel}</div>
             </div>
             <div class="tespit-row">
                 <div class="tespit-label">Tespit Edilen Ürün</div>
@@ -726,17 +505,17 @@ window.enableTespitMode = function () {
                 <div class="tespit-label">Tespit Alanı (m²)</div>
                 <input type="number" id="tespit-alan" class="tespit-input" placeholder="0">
             </div>
-            <div class="tespit-row" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+            <div class="tespit-row">
                 <div class="tespit-label">Açıklama</div>
-                <textarea id="tespit-aciklama" class="tespit-input" style="width: 100%;" placeholder="Notlarınızı buraya yazın..."></textarea>
+                <textarea id="tespit-aciklama" class="tespit-input" placeholder="Notlarınızı buraya yazın..."></textarea>
             </div>
             <div class="tespit-row">
                 <div class="tespit-label">Tespit Yapan</div>
-                <div class="detail-value">${currentUser || 'Bilinmiyor'}</div>
+                <div class="tespit-value-display">${currentUser || 'Bilinmiyor'}</div>
             </div>
             <div class="tespit-row">
                 <div class="tespit-label">Tespit Tarihi</div>
-                <div class="detail-value">${today}</div>
+                <div class="tespit-value-display">${today}</div>
             </div>
             <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
                 <button onclick="saveTespit()" class="action-btn-small green">💾 Kaydet ve İndir</button>
