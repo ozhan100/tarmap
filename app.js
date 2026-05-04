@@ -30,6 +30,7 @@ let measureShapes = [];
 let measureLayer;
 let activeFeature = null;
 let currentOwnerData = null;
+let masterRecords = [];
 
 let selectedFiles = {
     gml: null,
@@ -322,6 +323,7 @@ function hideLoading() {
 
 // ── Birleşik JSON'dan doğrudan harita çizimi ──
 function renderFromMasterData(records) {
+    masterRecords = records;
     // Mevcut poligonları temizle
     mapPolygons.forEach(p => map.removeLayer(p));
     mapPolygons = [];
@@ -893,7 +895,59 @@ function findParcelsByQuery(query) {
     const normalizedQuery = normalizeText(query);
     let results = [];
 
-    // Pattern 1: köy hamzabey ada 101,102 parsel 43,44
+    // Hızlı arama için masterRecords kullan (80 bin kayıtta anında sonuç verir)
+    if (masterRecords && masterRecords.length > 0) {
+        if (normalizedQuery.includes('ada') && normalizedQuery.includes('parsel')) {
+            const villageMatch = normalizedQuery.match(/köy\s+([^\s]+)/);
+            const adaMatch = normalizedQuery.match(/ada\s+([0-9,]+)/);
+            const parselMatch = normalizedQuery.match(/parsel\s+([0-9,]+)/);
+
+            if (adaMatch && parselMatch) {
+                const adas = adaMatch[1].split(',');
+                const parsels = parselMatch[1].split(',');
+
+                for (let i = 0; i < adas.length; i++) {
+                    const ada = adas[i].trim();
+                    const parsel = parsels[i] ? parsels[i].trim() : null;
+                    if (ada && parsel) {
+                        const rec = masterRecords.find(r => r.ada.toString() === ada && r.parsel.toString() === parsel);
+                        if (rec) results.push(rec);
+                    }
+                }
+            }
+        } else if (normalizedQuery.includes('isim') || normalizedQuery.includes('ürün')) {
+            const villageMatch = normalizedQuery.match(/köy\s+(.*?)(?=\s+isim|\s+ürün|$)/);
+            const nameMatch = normalizedQuery.match(/isim\s+(.*?)(?=\s+ürün|$)/);
+            const productMatch = normalizedQuery.match(/ürün\s+(.*)/);
+
+            const village = villageMatch ? normalizeText(villageMatch[1]) : null;
+            const name = nameMatch ? normalizeText(nameMatch[1]) : null;
+            const product = productMatch ? normalizeText(productMatch[1]) : null;
+
+            results = masterRecords.filter(r => {
+                let match = true;
+                if (village && !normalizeText(r.mahalle).includes(village)) match = false;
+                if (name && !normalizeText(r.isletme).includes(name)) match = false;
+                if (product && !normalizeText(r.urun).includes(product)) match = false;
+                return match && (village || name || product);
+            });
+        }
+
+        if (results.length === 0) {
+            results = masterRecords.filter(r => {
+                const pTC = (r.tc || "").toString().trim();
+                if (pTC && pTC.includes(normalizedQuery)) return true;
+
+                const pName = normalizeText(r.isletme || "");
+                if (pName && pName.includes(normalizedQuery)) return true;
+
+                return false;
+            });
+        }
+        return results;
+    }
+
+    // Eski yavaş yöntem (Eğer masterRecords yoksa)
     if (normalizedQuery.includes('ada') && normalizedQuery.includes('parsel')) {
         const villageMatch = normalizedQuery.match(/köy\s+([^\s]+)/);
         const adaMatch = normalizedQuery.match(/ada\s+([0-9,]+)/);
@@ -913,7 +967,6 @@ function findParcelsByQuery(query) {
             }
         }
     }
-    // Pattern 2: köy hamzabey isim hasan doğan ürün üzüm
     else if (normalizedQuery.includes('isim') || normalizedQuery.includes('ürün')) {
         const villageMatch = normalizedQuery.match(/köy\s+(.*?)(?=\s+isim|\s+ürün|$)/);
         const nameMatch = normalizedQuery.match(/isim\s+(.*?)(?=\s+ürün|$)/);
@@ -933,22 +986,16 @@ function findParcelsByQuery(query) {
 
             let match = true;
             if (village && !normalizeText(owner["Köy"] || owner["KÖY"] || "").includes(village)) match = false;
-
-            if (name) {
-                if (!normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(name)) match = false;
-            }
-
+            if (name && !normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(name)) match = false;
             if (product) {
                 const productVal = (owner["Ürün"] || owner["ÜRÜN"] || "").toString();
                 const cleanProductData = normalizeText(productVal.split('(')[0]);
                 if (!cleanProductData.includes(product)) match = false;
             }
-
             return match;
         });
     }
 
-    // Pattern 3: Fallback (Direct name or TC search)
     if (results.length === 0) {
         results = gmlFeatures.filter(f => {
             const owner = parselData.find(d => {
@@ -983,7 +1030,7 @@ function executeSearch(query) {
                 bounds.extend(foundPoly.getBounds());
                 foundPoly.setStyle({ color: '#f1c40f', weight: 4, fillOpacity: 0.7 });
                 setTimeout(() => {
-                    const isOwner = parselData.some(d => {
+                    const isOwner = f.isletme ? true : parselData.some(d => {
                         const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
                         const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
                         return dAda === f.ada && dParsel === f.parsel;
@@ -1035,15 +1082,21 @@ async function generateReport(query) {
 
             results.forEach(f => {
                 if (f.mahalle) allMahalleler.add(f.mahalle);
-                const owner = parselData.find(d => {
-                    const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
-                    const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
-                    return dAda === f.ada && dParsel === f.parsel;
-                });
                 
-                if (owner) {
-                    if (!matchedName) matchedName = owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || owner["İşletme Adı"] || "";
-                    if (!matchedTC) matchedTC = owner["TC"] || owner["TC Kimlik"] || owner["T.C. No"] || owner["TC / Vergi No"] || "";
+                if (f.isletme || f.tc) {
+                    if (!matchedName) matchedName = f.isletme || "";
+                    if (!matchedTC) matchedTC = f.tc || "";
+                } else {
+                    const owner = parselData.find(d => {
+                        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+                        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+                        return dAda === f.ada && dParsel === f.parsel;
+                    });
+                    
+                    if (owner) {
+                        if (!matchedName) matchedName = owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || owner["İşletme Adı"] || "";
+                        if (!matchedTC) matchedTC = owner["TC"] || owner["TC Kimlik"] || owner["T.C. No"] || owner["TC / Vergi No"] || "";
+                    }
                 }
             });
 
@@ -1061,12 +1114,16 @@ async function generateReport(query) {
             
             // Render HTML
             results.forEach((f, idx) => {
-                const owner = parselData.find(d => {
-                    const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
-                    const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
-                    return dAda === f.ada && dParsel === f.parsel;
-                });
-                const urun = owner ? (owner["Ürün"] || owner["ÜRÜN"] || "-") : "-";
+                let urun = f.urun || "-";
+                
+                if (!f.urun && !f.isletme) {
+                    const owner = parselData.find(d => {
+                        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+                        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+                        return dAda === f.ada && dParsel === f.parsel;
+                    });
+                    if (owner) urun = owner["Ürün"] || owner["ÜRÜN"] || "-";
+                }
 
                 const card = document.createElement('div');
                 card.className = 'print-card';
