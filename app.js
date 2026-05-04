@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.7.6";
+const APP_VERSION = "1.8.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -202,40 +202,286 @@ function setupSettings() {
     const modal = document.getElementById('settings-modal');
     const openBtn = document.getElementById('open-settings');
     const closeBtn = document.getElementById('close-settings');
-    const csvInput = document.getElementById('local-csv');
-    const gmlInput = document.getElementById('local-gml');
-    const excelInput = document.getElementById('local-excel');
-    const processBtn = document.getElementById('process-data-btn');
 
     openBtn?.addEventListener('click', () => modal.classList.remove('hidden'));
     closeBtn?.addEventListener('click', () => modal.classList.add('hidden'));
 
-    gmlInput?.addEventListener('change', (e) => selectedFiles.gml = e.target.files[0]);
-    csvInput?.addEventListener('change', (e) => selectedFiles.csv = e.target.files[0]);
+    // ── Sekme Geçişi ──
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab)?.classList.remove('hidden');
+        });
+    });
+
+    // ── TAB 1: Hazır JSON Yükle ──
+    const jsonInput = document.getElementById('local-json');
+    const loadJsonBtn = document.getElementById('load-json-btn');
+
+    loadJsonBtn?.addEventListener('click', async () => {
+        const file = jsonInput?.files[0];
+        if (!file) { alert('Lütfen bir JSON dosyası seçin.'); return; }
+        modal.classList.add('hidden');
+        showLoading('JSON yükleniyor...');
+        setTimeout(async () => {
+            try {
+                const text = await file.text();
+                const records = JSON.parse(text);
+                renderFromMasterData(records);
+                alert(`✅ ${records.length} parsel yüklendi.`);
+            } catch (err) {
+                alert('JSON okunamadı: ' + err.message);
+            } finally { hideLoading(); }
+        }, 80);
+    });
+
+    // ── TAB 2: Veri Birleştir ──
+    const gmlInput   = document.getElementById('local-gml');
+    const csvInput   = document.getElementById('local-csv');
+    const excelInput = document.getElementById('local-excel');
+    const processBtn = document.getElementById('process-data-btn');
+
+    gmlInput?.addEventListener('change',   (e) => selectedFiles.gml   = e.target.files[0]);
+    csvInput?.addEventListener('change',   (e) => selectedFiles.csv   = e.target.files[0]);
     excelInput?.addEventListener('change', (e) => selectedFiles.excel = e.target.files[0]);
 
     processBtn?.addEventListener('click', async () => {
         if (!selectedFiles.gml && !selectedFiles.csv && !selectedFiles.excel) {
-            alert("Lütfen en az bir dosya seçiniz!");
+            alert('Lütfen en az GML ve Parsel Excel dosyasını seçiniz.');
             return;
         }
-
-        loadingOverlay.classList.remove('hidden');
         modal.classList.add('hidden');
+        showLoading('Veriler birleştiriliyor...');
+        const progressArea = document.getElementById('merge-progress-area');
+        const progressBar  = document.getElementById('merge-progress-bar');
+        const progressText = document.getElementById('merge-progress-text');
+        if (progressArea) progressArea.classList.remove('hidden');
 
-        // Küçük bir gecikme ile UI'ın loading overlay'i göstermesine izin veriyoruz
+        const updateMergeProgress = (pct, msg) => {
+            if (progressBar)  progressBar.style.width = pct + '%';
+            if (progressText) progressText.textContent = msg;
+            const loadingTextEl = document.getElementById('loading-text');
+            if (loadingTextEl) loadingTextEl.textContent = msg;
+        };
+
         setTimeout(async () => {
             try {
-                await processAllData();
-                alert("Tüm veriler başarıyla işlendi ve harita güncellendi!");
-            } catch (error) {
-                console.error("İşleme hatası:", error);
-                alert("Veriler işlenirken bir hata oluştu: " + error.message);
+                const masterRecords = await buildMasterData(updateMergeProgress);
+                updateMergeProgress(90, 'Harita çiziliyor...');
+                renderFromMasterData(masterRecords);
+                updateMergeProgress(100, 'Tamamlandı!');
+
+                // JSON dosyasını indir
+                const blob = new Blob([JSON.stringify(masterRecords)], { type: 'application/json' });
+                const url  = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'TarmapVeri.json';
+                a.click();
+                URL.revokeObjectURL(url);
+
+                alert(`✅ ${masterRecords.length} parsel işlendi.\n\nTarmapVeri.json indirildi — bir dahaki sefere sadece bu dosyayı yükleyin.`);
+            } catch (err) {
+                console.error(err);
+                alert('İşlem hatası: ' + err.message);
             } finally {
-                loadingOverlay.classList.add('hidden');
+                hideLoading();
+                if (progressArea) progressArea.classList.add('hidden');
             }
-        }, 100);
+        }, 80);
     });
+}
+
+function showLoading(msg) {
+    if (loadingOverlay) {
+        const t = document.getElementById('loading-text');
+        if (t) t.textContent = msg || 'Yükleniyor...';
+        loadingOverlay.classList.remove('hidden');
+    }
+}
+function hideLoading() {
+    if (loadingOverlay) loadingOverlay.classList.add('hidden');
+}
+
+// ── Birleşik JSON'dan doğrudan harita çizimi ──
+function renderFromMasterData(records) {
+    // Mevcut poligonları temizle
+    mapPolygons.forEach(p => map.removeLayer(p));
+    mapPolygons = [];
+    gmlFeatures = [];
+    parselData  = [];
+    farmerData  = [];
+
+    if (!records || !records.length) return;
+
+    const bounds = L.latLngBounds();
+
+    records.forEach(rec => {
+        if (!rec.coords || !rec.coords.length) return;
+
+        const hasInfo = !!(rec.isletme || rec.urun);
+
+        const polygon = L.polygon(rec.coords, {
+            color:       hasInfo ? '#2ecc71' : '#95a5a6',
+            weight:      2,
+            opacity:     0.8,
+            fillColor:   hasInfo ? '#2ecc71' : '#95a5a6',
+            fillOpacity: 0.25
+        }).addTo(map);
+
+        // Tıklama: showParselInfo uyumlu feature ve owner nesneleri oluştur
+        const feature = { ada: rec.ada, parsel: rec.parsel, mahalle: rec.mahalle, coords: rec.coords };
+        const owner   = hasInfo ? {
+            'İşletme Adı': rec.isletme,
+            'TC':          rec.tc,
+            'Ürün':        rec.urun,
+            'Alan':        rec.alan,
+            'Tarım Şekli': rec.tarim_sekli,
+            _phone:        rec.telefon || null
+        } : null;
+
+        polygon.on('click', (e) => {
+            if (isMeasuringDist || isMeasuringArea) { addMeasurePoint(e.latlng); return; }
+            L.DomEvent.stopPropagation(e);
+            showParselInfo(feature, owner);
+        });
+        polygon.on('mouseover', () => { if (!isMeasuringDist && !isMeasuringArea) polygon.setStyle({ fillOpacity: 0.5 }); });
+        polygon.on('mouseout',  () => polygon.setStyle({ fillOpacity: 0.25 }));
+
+        polygon._ada    = rec.ada;
+        polygon._parsel = rec.parsel;
+
+        bounds.extend(polygon.getBounds());
+        mapPolygons.push(polygon);
+
+        // Arama & eski fonksiyonlar için gmlFeatures'e de ekle
+        gmlFeatures.push(feature);
+        if (owner) parselData.push(owner);
+    });
+
+    if (mapPolygons.length > 0) map.fitBounds(bounds);
+}
+
+// ── Üç dosyadan birleşik veri oluşturma motoru ──
+async function buildMasterData(progressCb) {
+    const norm = (v) => progressCb ? progressCb(v, '') : null;
+
+    // 1. GML
+    progressCb?.(5, 'GML dosyası okunuyor (büyük dosyalar 15-30 sn sürebilir)...');
+    gmlFeatures = [];
+    if (selectedFiles.gml) {
+        const text = await selectedFiles.gml.text();
+        parseGML(text);
+    }
+    progressCb?.(35, `${gmlFeatures.length} parsel geometrisi okundu. Excel işleniyor...`);
+
+    // 2. Parsel Excel / CSV
+    parselData = [];
+    if (selectedFiles.csv) {
+        parselData = await readExcelOrCsvSmart(
+            selectedFiles.csv,
+            [['ADA', 'PARSEL'], ['ÜRÜN', 'URUN'], ['İŞLETME', 'ISLETME']]
+        );
+    }
+    progressCb?.(55, `${parselData.length} parsel kaydı okundu. Çiftçi verisi işleniyor...`);
+
+    // 3. Çiftçi Excel (opsiyonel)
+    farmerData = [];
+    if (selectedFiles.excel) {
+        farmerData = await readExcelOrCsvSmart(
+            selectedFiles.excel,
+            [['TC', 'TELEFON'], ['ADI', 'SOYAD'], ['UNVAN']]
+        );
+    }
+    progressCb?.(70, 'Veriler eşleştiriliyor...');
+
+    // Farmer Map (hız için)
+    const farmerByTC   = new Map();
+    const farmerByName = new Map();
+    farmerData.forEach(f => {
+        const tc = (f['TC_V NO'] || f['TC'] || f['T.C. No'] || f['TC No'] || f['T.C.'] || '').trim();
+        const nm = normalizeText(f['ADI/UNVANI'] || f['Ad Soyad'] || f['Adı Soyadı'] || f['ADI SOYADI'] || f['İşletme Adı'] || '');
+        if (tc) farmerByTC.set(tc, f);
+        if (nm) farmerByName.set(nm, f);
+    });
+
+    // Parsel Map (Ada-Parsel anahtarı)
+    const parselMap = new Map();
+    parselData.forEach(p => {
+        const ada    = (p['Ada No'] || p['Ada'] || p['AdaNo'] || p['Ada No'] || '').toString().trim().replace(/^0+/, '') || '0';
+        const parsel = (p['Parsel No'] || p['Parsel'] || p['ParselNo'] || p['Parsel No'] || '').toString().trim().replace(/^0+/, '') || '0';
+        parselMap.set(`${ada}-${parsel}`, p);
+    });
+
+    // Birleştir
+    const records = gmlFeatures.map(feat => {
+        const fAda    = feat.ada.toString().replace(/^0+/, '');
+        const fParsel = feat.parsel.toString().replace(/^0+/, '');
+        const p = parselMap.get(`${fAda}-${fParsel}`) || {};
+
+        const pTC   = (p['TC'] || p['TC / Vergi No'] || '').trim();
+        const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
+        const farmer = (pTC && farmerByTC.get(pTC)) || (pName && farmerByName.get(pName)) || {};
+        const phone  = farmer['TELEFON'] || farmer['Telefon'] || farmer['Cep Tel'] || farmer['GSM'] || farmer['CEP TEL'] || '';
+
+        return {
+            ada:        feat.ada,
+            parsel:     feat.parsel,
+            mahalle:    feat.mahalle,
+            coords:     feat.coords,
+            isletme:    p['İşletme Adı'] || p['İşletme'] || '',
+            tc:         pTC,
+            urun:       p['Ürün'] || '',
+            alan:       p['Kullanılan  Alan(da)'] || p['Alan'] || '',
+            tarim_sekli:p['Tarım Şekli'] || '',
+            telefon:    phone
+        };
+    });
+
+    progressCb?.(88, `${records.length} kayıt birleştirildi.`);
+    return records;
+}
+
+// ── Akıllı Excel / CSV Okuyucu ──
+async function readExcelOrCsvSmart(file, keywordSets) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        const data     = await file.arrayBuffer();
+        const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+        const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+
+        // Akıllı başlık tespiti
+        let rangeIdx = 0;
+        for (let i = 0; i < 12; i++) {
+            const row = XLSX.utils.sheet_to_json(sheet, { range: i, header: 1 })[0] || [];
+            const hit = keywordSets.some(kws =>
+                row.some(cell => kws.some(kw => String(cell).toUpperCase().includes(kw)))
+            );
+            if (hit) { rangeIdx = i; break; }
+        }
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { range: rangeIdx });
+        return jsonData.map(row => {
+            const out = {};
+            for (const k in row) {
+                const clean = k.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+                out[clean] = row[k] !== undefined && row[k] !== null ? row[k].toString().trim() : '';
+            }
+            return out;
+        });
+    } else {
+        const text   = await file.text();
+        const parsed = Papa.parse(text, { header: true, delimiter: ';', skipEmptyLines: true });
+        return parsed.data.map(row => {
+            const out = {};
+            for (const k in row) {
+                const clean = k.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+                out[clean] = row[k] ? row[k].toString().trim() : '';
+            }
+            return out;
+        });
+    }
 }
 
 async function processAllData() {
@@ -375,16 +621,28 @@ function parseGML(xmlString) {
     const members = xmlDoc.getElementsByTagNameNS("*", "featureMember");
 
     for (let member of members) {
-        const layer = member.getElementsByTagNameNS("*", "Layer1")[0];
+        const layer = member.getElementsByTagNameNS("*", "Layer1")[0] || member.firstElementChild;
         if (!layer) continue;
 
-        const adaNo = layer.getElementsByTagNameNS("*", "AdaNo")[0]?.textContent?.trim();
-        const parselNo = layer.getElementsByTagNameNS("*", "ParselNo")[0]?.textContent?.trim();
+        // Ada ve Parsel için genişletilmiş etiket araması
+        const adaNo = (layer.getElementsByTagNameNS("*", "AdaNo")[0] || 
+                      layer.getElementsByTagNameNS("*", "ADA_NO")[0] || 
+                      layer.getElementsByTagNameNS("*", "ADA")[0] || 
+                      layer.getElementsByTagNameNS("*", "ADANO")[0])?.textContent?.trim();
+
+        const parselNo = (layer.getElementsByTagNameNS("*", "ParselNo")[0] || 
+                         layer.getElementsByTagNameNS("*", "PARSEL_NO")[0] || 
+                         layer.getElementsByTagNameNS("*", "PARSEL")[0] || 
+                         layer.getElementsByTagNameNS("*", "PARSELNO")[0])?.textContent?.trim();
+
         const mahalle = layer.getElementsByTagNameNS("*", "Mahalle")[0]?.textContent?.trim() ||
             layer.getElementsByTagNameNS("*", "MahalleAdi")[0]?.textContent?.trim() ||
             layer.getElementsByTagNameNS("*", "MAHALLE_AD")[0]?.textContent?.trim() ||
             layer.getElementsByTagNameNS("*", "KoyAdi")[0]?.textContent?.trim() || "";
-        const geom = layer.getElementsByTagNameNS("*", "Geom")[0];
+        
+        const geom = layer.getElementsByTagNameNS("*", "Geom")[0] || 
+                     layer.getElementsByTagNameNS("*", "geometry")[0] ||
+                     layer.getElementsByTagNameNS("*", "GEOMETRI")[0];
 
         if (!adaNo || !parselNo || !geom) continue;
 
@@ -423,15 +681,20 @@ function renderPolygons() {
     // Hız için parsel verilerini Map'e al (Key: Ada-Parsel)
     const ownerMap = new Map();
     parselData.forEach(d => {
-        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || d["Ada No"] || "").toString().trim();
-        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || d["Parsel No"] || "").toString().trim();
+        // Ada ve Parsel numaralarını sayısal olarak normalize et (Baştaki sıfırları temizle)
+        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim().replace(/^0+/, '');
+        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim().replace(/^0+/, '');
         ownerMap.set(`${dAda}-${dParsel}`, d);
     });
 
     const bounds = L.latLngBounds();
 
     gmlFeatures.forEach(feature => {
-        const key = `${feature.ada}-${feature.parsel}`;
+        // GML'den gelen ada/parseli de normalize et
+        const fAda = feature.ada.toString().replace(/^0+/, '');
+        const fParsel = feature.parsel.toString().replace(/^0+/, '');
+        
+        const key = `${fAda}-${fParsel}`;
         const owner = ownerMap.get(key);
 
         const polygon = L.polygon(feature.coords, {
@@ -521,7 +784,7 @@ window.showParselInfo = function (feature, owner) {
         ${owner ? `
             <div class="detail-item">
                 <div class="detail-label">İşletme / Sahibi</div>
-                <div class="detail-value">${owner["İşletme"] || "Bilinmiyor"}</div>
+                <div class="detail-value">${owner["İşletme Adı"] || owner["İşletme"] || owner["Sahibi"] || "Bilinmiyor"}</div>
             </div>
             ${phone ? `
                 <div class="detail-item phone-row">
@@ -532,7 +795,7 @@ window.showParselInfo = function (feature, owner) {
             ` : ''}
             <div class="detail-item">
                 <div class="detail-label">TC Kimlik</div>
-                <div class="detail-value">${owner["TC"] || "Gizli"}</div>
+                <div class="detail-value">${owner["TC"] || owner["TC / Vergi No"] || "Gizli"}</div>
             </div>
             <div class="detail-item">
                 <div class="detail-label">Ürün</div>
@@ -540,7 +803,7 @@ window.showParselInfo = function (feature, owner) {
             </div>
             <div class="detail-item">
                 <div class="detail-label">Alan (da)</div>
-                <div class="detail-value">${owner["Alan"] || owner["ParselAlanı"] || "-"}</div>
+                <div class="detail-value">${owner["Alan"] || owner["Kullanılan  Alan(da)"] || owner["ParselAlanı"] || "-"}</div>
             </div>
             <div class="detail-item">
                 <div class="detail-label">Tarım Şekli</div>

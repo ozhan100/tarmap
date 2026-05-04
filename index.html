@@ -5,16 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tarla Takip Sistemi</title>
-    <link rel="stylesheet" href="styles.css?v=1.7.0">
+    <link rel="stylesheet" href="styles.css?v=1.8.0">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
-    <!-- Leaflet for Maps (No API key needed) -->
+    <!-- Leaflet for Maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- PapaParse for CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <!-- SheetJS for XLSX -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- html2canvas for parcel image export -->
+    <!-- html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 
@@ -25,7 +25,7 @@
             <div class="logo-container">
                 <div class="logo-icon">🚜</div>
                 <h1>TarMap</h1>
-                <div class="version-tag" id="login-version">V1.7.0</div>
+                <div class="version-tag" id="login-version">V1.8.0</div>
             </div>
             <p>Giriş yapmak için şifrenizi giriniz.</p>
             <div class="input-group">
@@ -37,15 +37,13 @@
         </div>
     </div>
 
-
-
     <!-- Main Application -->
     <div id="app" class="hidden">
         <header class="ui-hidden">
             <div class="brand">
                 <span class="icon">🌾</span>
                 <span class="title">TarMap</span>
-                <span class="header-version" id="header-version">V1.7.0</span>
+                <span class="header-version" id="header-version">V1.8.0</span>
             </div>
             <div class="controls">
                 <button id="measure-dist" title="Mesafe Ölç" class="tool-btn">📏</button>
@@ -78,7 +76,7 @@
 
         <div id="loading-overlay" class="loading-overlay">
             <div class="spinner"></div>
-            <p>Veriler yükleniyor...</p>
+            <p id="loading-text">Veriler yükleniyor...</p>
         </div>
 
         <div class="search-container ui-hidden" id="search-container">
@@ -94,31 +92,66 @@
         <div id="settings-modal" class="overlay hidden">
             <div class="settings-card">
                 <div class="settings-header">
-                    <h3>📂 Veri Kaynaklarını Yönet</h3>
+                    <h3>📂 Veri Yönetimi</h3>
                     <button id="close-settings" class="close-btn">&times;</button>
                 </div>
+
+                <!-- Sekmeler -->
+                <div class="settings-tabs">
+                    <button class="tab-btn active" data-tab="tab-load">📥 Hazır Veri Yükle</button>
+                    <button class="tab-btn" data-tab="tab-merge">⚙️ Veri Birleştir</button>
+                </div>
+
                 <div class="settings-body">
-                    <p class="settings-hint">Cihazınızdan yeni rapor dosyalarını (CSV, GML veya Excel) seçerek haritayı
-                        güncelleyebilirsiniz.</p>
 
-                    <div class="file-input-group">
-                        <label>1. Harita Verisi (GML)</label>
-                        <input type="file" id="local-gml" accept=".gml">
+                    <!-- TAB 1: Hazır JSON Yükle -->
+                    <div id="tab-load" class="tab-content">
+                        <p class="settings-hint">
+                            "Veri Birleştir" sekmesiyle daha önce oluşturulan
+                            <strong>TarmapVeri.json</strong> dosyasını seçip doğrudan haritaya yükleyin.
+                        </p>
+                        <div class="file-input-group highlight-group">
+                            <label>⭐ Birleşik TarMap JSON Dosyası</label>
+                            <input type="file" id="local-json" accept=".json">
+                        </div>
+                        <div class="settings-footer">
+                            <button id="load-json-btn" class="action-btn-large green">🚀 Haritaya Yükle</button>
+                        </div>
                     </div>
 
-                    <div class="file-input-group">
-                        <label>2. Parsel Verisi (CSV / Excel)</label>
-                        <input type="file" id="local-csv" accept=".csv,.xlsx,.xls">
+                    <!-- TAB 2: Veri Birleştir -->
+                    <div id="tab-merge" class="tab-content hidden">
+                        <p class="settings-hint">
+                            3 dosyayı seçin, <strong>Birleştir</strong> butonuna basın.
+                            Harita güncellenecek ve JSON dosyası indirilecek —
+                            bir dahaki sefere sadece o dosyayı yüklersiniz.
+                        </p>
+                        <div class="file-input-group">
+                            <label>1. Tüm İlçe GML Dosyası</label>
+                            <input type="file" id="local-gml" accept=".gml,.xml">
+                        </div>
+                        <div class="file-input-group">
+                            <label>2. ÇKS Parsel Üretim Raporu (Excel / CSV)</label>
+                            <input type="file" id="local-csv" accept=".csv,.xlsx,.xls">
+                        </div>
+                        <div class="file-input-group">
+                            <label>3. ÇKS Çiftçi Veritabanı (Excel, Opsiyonel)</label>
+                            <input type="file" id="local-excel" accept=".xlsx,.xls">
+                        </div>
+
+                        <!-- İlerleme çubuğu -->
+                        <div id="merge-progress-area" class="hidden">
+                            <div id="merge-progress-text"></div>
+                            <div class="progress-track">
+                                <div id="merge-progress-bar"></div>
+                            </div>
+                        </div>
+
+                        <div class="settings-footer">
+                            <button id="process-data-btn" class="action-btn-large green">⚙️ Birleştir ve Haritaya Yükle</button>
+                        </div>
                     </div>
 
-                    <div class="file-input-group">
-                        <label>3. Çiftçi Veritabanı (Excel)</label>
-                        <input type="file" id="local-excel" accept=".xlsx,.xls">
-                    </div>
-
-                    <div class="settings-footer">
-                        <button id="process-data-btn" class="action-btn-large green">🚀 Seçilen Verileri Uygula</button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -126,7 +159,7 @@
 
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=1.7.0"></script>
+    <script src="app.js?v=1.8.0"></script>
 </body>
 
 </html>
