@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.7.3";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -30,6 +30,12 @@ let measureShapes = [];
 let measureLayer;
 let activeFeature = null;
 let currentOwnerData = null;
+
+let selectedFiles = {
+    gml: null,
+    csv: null,
+    excel: null
+};
 
 // DOM Elements (initialized after DOM is ready)
 let loginScreen, appScreen, loadingOverlay, usernameInput, passwordInput;
@@ -201,6 +207,7 @@ function setupSettings() {
     const csvInput = document.getElementById('local-csv');
     const gmlInput = document.getElementById('local-gml');
     const excelInput = document.getElementById('local-excel');
+    const processBtn = document.getElementById('process-data-btn');
 
     openBtn?.addEventListener('click', () => modal.classList.remove('hidden'));
     closeBtn?.addEventListener('click', () => modal.classList.add('hidden'));
@@ -210,90 +217,97 @@ function setupSettings() {
         }
     });
 
-    csvInput?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    gmlInput?.addEventListener('change', (e) => selectedFiles.gml = e.target.files[0]);
+    csvInput?.addEventListener('change', (e) => selectedFiles.csv = e.target.files[0]);
+    excelInput?.addEventListener('change', (e) => selectedFiles.excel = e.target.files[0]);
 
-        const reader = new FileReader();
-        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-            reader.onload = (event) => {
-                const data = new Uint8Array(event.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-                parselData = jsonData.map(row => {
-                    const newRow = {};
-                    for (let key in row) {
-                        const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-                        newRow[cleanKey] = row[key] ? row[key].toString().trim() : "";
-                    }
-                    return newRow;
-                });
-                joinFarmerData();
-                renderPolygons();
-                alert("Excel Parsel Verisi Yüklendi!");
-            };
-            reader.readAsArrayBuffer(file);
-        } else {
-            reader.onload = (event) => {
-                const parsed = Papa.parse(event.target.result, {
-                    header: true,
-                    delimiter: ";",
-                    skipEmptyLines: true
-                });
-                parselData = parsed.data.map(row => {
-                    const newRow = {};
-                    for (let key in row) {
-                        // Clean key from newlines and extra spaces
-                        const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-                        newRow[cleanKey] = row[key] ? row[key].toString().trim() : "";
-                    }
-                    return newRow;
-                });
-                joinFarmerData();
-                renderPolygons(); // Re-render to update colors and info
-                alert("CSV Parsel Verisi Yüklendi!");
-            };
-            reader.readAsText(file);
+    processBtn?.addEventListener('click', async () => {
+        if (!selectedFiles.gml && !selectedFiles.csv && !selectedFiles.excel) {
+            alert("Lütfen en az bir dosya seçiniz!");
+            return;
         }
-    });
 
-    gmlInput?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            gmlFeatures = [];
-            parseGML(event.target.result);
-            renderPolygons();
-            alert("Harita Verisi (GML) Yüklendi!");
-        };
-        reader.readAsText(file);
-    });
+        loadingOverlay.classList.remove('hidden');
+        modal.classList.add('hidden');
 
-    excelInput?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const data = new Uint8Array(event.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+        // Küçük bir gecikme ile UI'ın loading overlay'i göstermesine izin veriyoruz
+        setTimeout(async () => {
+            try {
+                await processAllData();
+                alert("Tüm veriler başarıyla işlendi ve harita güncellendi!");
+            } catch (error) {
+                console.error("İşleme hatası:", error);
+                alert("Veriler işlenirken bir hata oluştu: " + error.message);
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        }, 100);
+    });
+}
+
+async function processAllData() {
+    // 1. Excel (Farmer) Verisini Oku
+    if (selectedFiles.excel) {
+        const data = await selectedFiles.excel.arrayBuffer();
+        const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        farmerData = jsonData.map(row => {
+            const newRow = {};
+            for (let key in row) {
+                const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+                newRow[cleanKey] = row[key];
+            }
+            return newRow;
+        });
+    }
+
+    // 2. CSV veya Excel (Parsel) Verisini Oku
+    if (selectedFiles.csv) {
+        const file = selectedFiles.csv;
+        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-            farmerData = jsonData.map(row => {
+            parselData = jsonData.map(row => {
                 const newRow = {};
                 for (let key in row) {
                     const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-                    newRow[cleanKey] = row[key];
+                    newRow[cleanKey] = row[key] ? row[key].toString().trim() : "";
                 }
                 return newRow;
             });
-            joinFarmerData();
-            renderPolygons(); // Re-render to update info on existing parcels
-            alert("Çiftçi Veritabanı (Excel) Yüklendi!");
-        };
-        reader.readAsArrayBuffer(file);
-    });
+        } else {
+            const text = await file.text();
+            const parsed = Papa.parse(text, {
+                header: true,
+                delimiter: ";",
+                skipEmptyLines: true
+            });
+            parselData = parsed.data.map(row => {
+                const newRow = {};
+                for (let key in row) {
+                    const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+                    newRow[cleanKey] = row[key] ? row[key].toString().trim() : "";
+                }
+                return newRow;
+            });
+        }
+    }
+
+    // 3. GML Verisini Oku
+    if (selectedFiles.gml) {
+        const text = await selectedFiles.gml.text();
+        gmlFeatures = [];
+        parseGML(text);
+    }
+
+    // 4. Verileri Birleştir (Optimize Edilmiş)
+    joinFarmerData();
+
+    // 5. Haritayı Çiz
+    renderPolygons();
 }
 
 async function loadData() {
@@ -303,23 +317,33 @@ async function loadData() {
 function joinFarmerData() {
     if (!parselData.length || !farmerData.length) return;
 
+    // Hız için Farmer verilerini Map'e al (Key: TC veya Normalleştirilmiş İsim)
+    const farmerMapByTC = new Map();
+    const farmerMapByName = new Map();
+
+    farmerData.forEach(f => {
+        const fTC = (f["TC_V NO"] || f["TC"] || f["T.C. No"] || f["TC No"] || f["T.C."] || "").toString().trim();
+        if (fTC) farmerMapByTC.set(fTC, f);
+
+        const fName = normalizeText(f["ADI/UNVANI"] || f["Ad Soyad"] || f["Adı Soyadı"] || f["İşletme Adı"] || f["ADI SOYADI"]);
+        if (fName) farmerMapByName.set(fName, f);
+    });
+
     parselData.forEach(p => {
         const pTC = (p["TC"] || p["TC Kimlik"] || p["T.C. No"] || "").toString().trim();
         const pName = normalizeText(p["İşletme"] || p["Ad Soyad"] || p["Sahibi"]);
 
-        const farmer = farmerData.find(f => {
-            const fTC = (f["TC_V NO"] || f["TC"] || f["T.C. No"] || f["TC No"] || f["T.C."] || "").toString().trim();
-            if (pTC && fTC === pTC) return true;
-
-            const fName = normalizeText(f["ADI/UNVANI"] || f["Ad Soyad"] || f["Adı Soyadı"] || f["İşletme Adı"] || f["ADI SOYADI"]);
-            if (pName && fName === pName) return true;
-
-            return false;
-        });
+        let farmer = null;
+        if (pTC && farmerMapByTC.has(pTC)) {
+            farmer = farmerMapByTC.get(pTC);
+        } else if (pName && farmerMapByName.has(pName)) {
+            farmer = farmerMapByName.get(pName);
+        }
 
         if (farmer) {
             p._farmerInfo = farmer;
-            p._phone = farmer["TELEFON"] || farmer["Telefon"] || farmer["Cep Tel"] || farmer["GSM"] || farmer["CEP TEL"];
+            const phone = farmer["TELEFON"] || farmer["Telefon"] || farmer["Cep Tel"] || farmer["GSM"] || farmer["CEP TEL"];
+            p._phone = phone ? phone.toString().trim() : null;
         }
     });
 }
@@ -373,15 +397,21 @@ function renderPolygons() {
     mapPolygons.forEach(p => map.removeLayer(p));
     mapPolygons = [];
 
+    if (!gmlFeatures.length) return;
+
+    // Hız için parsel verilerini Map'e al (Key: Ada-Parsel)
+    const ownerMap = new Map();
+    parselData.forEach(d => {
+        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+        ownerMap.set(`${dAda}-${dParsel}`, d);
+    });
+
     const bounds = L.latLngBounds();
 
     gmlFeatures.forEach(feature => {
-        // Robust matching for Ada/Parsel
-        const owner = parselData.find(d => {
-            const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
-            const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
-            return dAda === feature.ada && dParsel === feature.parsel;
-        });
+        const key = `${feature.ada}-${feature.parsel}`;
+        const owner = ownerMap.get(key);
 
         const polygon = L.polygon(feature.coords, {
             color: owner ? "#2ecc71" : "#95a5a6",
