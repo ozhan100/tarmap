@@ -313,6 +313,10 @@ function parseGML(xmlString) {
 
         const adaNo = layer.getElementsByTagNameNS("*", "AdaNo")[0]?.textContent?.trim();
         const parselNo = layer.getElementsByTagNameNS("*", "ParselNo")[0]?.textContent?.trim();
+        const mahalle = layer.getElementsByTagNameNS("*", "Mahalle")[0]?.textContent?.trim() || 
+                        layer.getElementsByTagNameNS("*", "MahalleAdi")[0]?.textContent?.trim() || 
+                        layer.getElementsByTagNameNS("*", "MAHALLE_AD")[0]?.textContent?.trim() || 
+                        layer.getElementsByTagNameNS("*", "KoyAdi")[0]?.textContent?.trim() || "";
         const geom = layer.getElementsByTagNameNS("*", "Geom")[0];
 
         if (!adaNo || !parselNo || !geom) continue;
@@ -336,6 +340,7 @@ function parseGML(xmlString) {
         gmlFeatures.push({
             ada: adaNo,
             parsel: parselNo,
+            mahalle: mahalle,
             coords: coordinates
         });
     }
@@ -396,7 +401,7 @@ function renderPolygons() {
     }
 }
 
-function showParselInfo(feature, owner) {
+window.showParselInfo = function (feature, owner) {
     activeFeature = feature;
     currentOwnerData = owner;
     // Find farmer details if possible
@@ -434,6 +439,12 @@ function showParselInfo(feature, owner) {
             <div class="detail-label">Ada / Parsel</div>
             <div class="detail-value"><span id="panel-ada">${feature.ada}</span> / <span id="panel-parsel">${feature.parsel}</span></div>
         </div>
+        ${feature.mahalle ? `
+        <div class="detail-item">
+            <div class="detail-label">Mahalle</div>
+            <div class="detail-value">${feature.mahalle}</div>
+        </div>
+        ` : ''}
         ${owner ? `
             <div class="detail-item">
                 <div class="detail-label">İşletme / Sahibi</div>
@@ -455,7 +466,7 @@ function showParselInfo(feature, owner) {
                 <div class="detail-value">${owner["Ürün"] || "-"}</div>
             </div>
             <div class="detail-item">
-                <div class="detail-label">Alan (m²)</div>
+                <div class="detail-label">Alan (da)</div>
                 <div class="detail-value">${owner["Alan"] || owner["ParselAlanı"] || "-"}</div>
             </div>
             <div class="detail-item">
@@ -482,6 +493,10 @@ window.enableTespitMode = function () {
     const ada = document.getElementById('panel-ada').innerText;
     const parsel = document.getElementById('panel-parsel').innerText;
     const today = new Date().toLocaleDateString('tr-TR');
+    
+    // Mevcut verileri çek (Pre-fill)
+    const currentUrun = currentOwnerData ? (currentOwnerData["Ürün"] || "") : "";
+    const currentAlan = currentOwnerData ? (currentOwnerData["Alan"] || currentOwnerData["ParselAlanı"] || "").toString().replace(',', '.') : "";
 
     parselDetails.innerHTML = `
         <div class="tespit-form">
@@ -499,11 +514,11 @@ window.enableTespitMode = function () {
             </div>
             <div class="tespit-row">
                 <div class="tespit-label">Tespit Edilen Ürün</div>
-                <input type="text" id="tespit-urun" class="tespit-input" placeholder="Ürün adı giriniz">
+                <input type="text" id="tespit-urun" class="tespit-input" value="${currentUrun}" placeholder="Ürün adı giriniz">
             </div>
             <div class="tespit-row">
-                <div class="tespit-label">Tespit Alanı (m²)</div>
-                <input type="number" id="tespit-alan" class="tespit-input" placeholder="0">
+                <div class="tespit-label">Tespit Alanı (da)</div>
+                <input type="number" id="tespit-alan" class="tespit-input" value="${currentAlan}" placeholder="0" step="0.01">
             </div>
             <div class="tespit-row">
                 <div class="tespit-label">Açıklama</div>
@@ -526,15 +541,11 @@ window.enableTespitMode = function () {
 };
 
 window.cancelTespit = function () {
-    const ada = document.getElementById('panel-ada').innerText;
-    const parsel = document.getElementById('panel-parsel').innerText;
-    const activeFeature = gmlFeatures.find(f => f.ada === ada && f.parsel === parsel);
-    const owner = parselData.find(d => {
-        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
-        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
-        return dAda === ada && dParsel === parsel;
-    });
-    showParselInfo(activeFeature, owner);
+    if (activeFeature) {
+        window.showParselInfo(activeFeature, currentOwnerData);
+    } else {
+        infoPanel.classList.add('hidden');
+    }
 };
 
 
