@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tarla Takip Sistemi</title>
-    <link rel="stylesheet" href="styles.css?v=1.6.0">
+    <link rel="stylesheet" href="styles.css?v=1.7.0">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <!-- Leaflet for Maps (No API key needed) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -25,7 +25,7 @@
             <div class="logo-container">
                 <div class="logo-icon">🚜</div>
                 <h1>TarMap</h1>
-                <div class="version-tag" id="login-version">V1.0.0</div>
+                <div class="version-tag" id="login-version">V1.7.0</div>
             </div>
             <p>Giriş yapmak için şifrenizi giriniz.</p>
             <div class="input-group">
@@ -45,7 +45,7 @@
             <div class="brand">
                 <span class="icon">🌾</span>
                 <span class="title">TarMap</span>
-                <span class="header-version" id="header-version">V1.0.0</span>
+                <span class="header-version" id="header-version">V1.7.0</span>
             </div>
             <div class="controls">
                 <button id="measure-dist" title="Mesafe Ölç" class="tool-btn">📏</button>
@@ -107,8 +107,8 @@
                     </div>
 
                     <div class="file-input-group">
-                        <label>2. Parsel Verisi (CSV)</label>
-                        <input type="file" id="local-csv" accept=".csv">
+                        <label>2. Parsel Verisi (CSV / Excel)</label>
+                        <input type="file" id="local-csv" accept=".csv,.xlsx,.xls">
                     </div>
 
                     <div class="file-input-group">
@@ -126,7 +126,7 @@
 
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=1.6.0"></script>
+    <script src="app.js?v=1.7.0"></script>
 </body>
 
 </html>

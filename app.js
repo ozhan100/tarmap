@@ -213,27 +213,49 @@ function setupSettings() {
     csvInput?.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
         const reader = new FileReader();
-        reader.onload = (event) => {
-            const parsed = Papa.parse(event.target.result, {
-                header: true,
-                delimiter: ";",
-                skipEmptyLines: true
-            });
-            parselData = parsed.data.map(row => {
-                const newRow = {};
-                for (let key in row) {
-                    // Clean key from newlines and extra spaces
-                    const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-                    newRow[cleanKey] = row[key] ? row[key].toString().trim() : "";
-                }
-                return newRow;
-            });
-            joinFarmerData();
-            renderPolygons(); // Re-render to update colors and info
-            alert("CSV Verisi Yüklendi!");
-        };
-        reader.readAsText(file);
+        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+            reader.onload = (event) => {
+                const data = new Uint8Array(event.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                parselData = jsonData.map(row => {
+                    const newRow = {};
+                    for (let key in row) {
+                        const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+                        newRow[cleanKey] = row[key] ? row[key].toString().trim() : "";
+                    }
+                    return newRow;
+                });
+                joinFarmerData();
+                renderPolygons();
+                alert("Excel Parsel Verisi Yüklendi!");
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            reader.onload = (event) => {
+                const parsed = Papa.parse(event.target.result, {
+                    header: true,
+                    delimiter: ";",
+                    skipEmptyLines: true
+                });
+                parselData = parsed.data.map(row => {
+                    const newRow = {};
+                    for (let key in row) {
+                        // Clean key from newlines and extra spaces
+                        const cleanKey = key.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+                        newRow[cleanKey] = row[key] ? row[key].toString().trim() : "";
+                    }
+                    return newRow;
+                });
+                joinFarmerData();
+                renderPolygons(); // Re-render to update colors and info
+                alert("CSV Parsel Verisi Yüklendi!");
+            };
+            reader.readAsText(file);
+        }
     });
 
     gmlInput?.addEventListener('change', (e) => {
@@ -313,10 +335,10 @@ function parseGML(xmlString) {
 
         const adaNo = layer.getElementsByTagNameNS("*", "AdaNo")[0]?.textContent?.trim();
         const parselNo = layer.getElementsByTagNameNS("*", "ParselNo")[0]?.textContent?.trim();
-        const mahalle = layer.getElementsByTagNameNS("*", "Mahalle")[0]?.textContent?.trim() || 
-                        layer.getElementsByTagNameNS("*", "MahalleAdi")[0]?.textContent?.trim() || 
-                        layer.getElementsByTagNameNS("*", "MAHALLE_AD")[0]?.textContent?.trim() || 
-                        layer.getElementsByTagNameNS("*", "KoyAdi")[0]?.textContent?.trim() || "";
+        const mahalle = layer.getElementsByTagNameNS("*", "Mahalle")[0]?.textContent?.trim() ||
+            layer.getElementsByTagNameNS("*", "MahalleAdi")[0]?.textContent?.trim() ||
+            layer.getElementsByTagNameNS("*", "MAHALLE_AD")[0]?.textContent?.trim() ||
+            layer.getElementsByTagNameNS("*", "KoyAdi")[0]?.textContent?.trim() || "";
         const geom = layer.getElementsByTagNameNS("*", "Geom")[0];
 
         if (!adaNo || !parselNo || !geom) continue;
@@ -493,7 +515,7 @@ window.enableTespitMode = function () {
     const ada = document.getElementById('panel-ada').innerText;
     const parsel = document.getElementById('panel-parsel').innerText;
     const today = new Date().toLocaleDateString('tr-TR');
-    
+
     // Mevcut verileri çek (Pre-fill)
     const currentUrun = currentOwnerData ? (currentOwnerData["Ürün"] || "") : "";
     const currentAlan = currentOwnerData ? (currentOwnerData["Alan"] || currentOwnerData["ParselAlanı"] || "").toString().replace(',', '.') : "";
