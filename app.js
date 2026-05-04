@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.9.0";
+const APP_VERSION = "1.9.1";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -888,10 +888,9 @@ function normalizeText(text) {
     return str.replace(/\s+/g, ' ').trim();
 }
 
-function executeSearch(query) {
-    if (!query) return;
+function findParcelsByQuery(query) {
+    if (!query) return [];
     const normalizedQuery = normalizeText(query);
-
     let results = [];
 
     // Pattern 1: köy hamzabey ada 101,102 parsel 43,44
@@ -916,7 +915,6 @@ function executeSearch(query) {
     }
     // Pattern 2: köy hamzabey isim hasan doğan ürün üzüm
     else if (normalizedQuery.includes('isim') || normalizedQuery.includes('ürün')) {
-        // All regex operations should be on the normalizedQuery to avoid case issues
         const villageMatch = normalizedQuery.match(/köy\s+(.*?)(?=\s+isim|\s+ürün|$)/);
         const nameMatch = normalizedQuery.match(/isim\s+(.*?)(?=\s+ürün|$)/);
         const productMatch = normalizedQuery.match(/ürün\s+(.*)/);
@@ -924,9 +922,6 @@ function executeSearch(query) {
         const village = villageMatch ? normalizeText(villageMatch[1]) : null;
         const name = nameMatch ? normalizeText(nameMatch[1]) : null;
         const product = productMatch ? normalizeText(productMatch[1]) : null;
-
-        // If no explicit tags found, try to treat the whole query as a name search
-        const fallbackName = (!village && !name && !product) ? normalizedQuery : null;
 
         results = gmlFeatures.filter(f => {
             const owner = parselData.find(d => {
@@ -941,8 +936,6 @@ function executeSearch(query) {
 
             if (name) {
                 if (!normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(name)) match = false;
-            } else if (fallbackName) {
-                if (!normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(fallbackName)) match = false;
             }
 
             if (product) {
@@ -955,9 +948,8 @@ function executeSearch(query) {
         });
     }
 
-    // Extract TC searching as well, which was missing in pattern 2 fallback
-    if (results.length === 0 && fallbackName) {
-        // Just try searching by TC or matching anything globally
+    // Pattern 3: Fallback (Direct name or TC search)
+    if (results.length === 0) {
         results = gmlFeatures.filter(f => {
             const owner = parselData.find(d => {
                 const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
@@ -967,7 +959,11 @@ function executeSearch(query) {
             if (!owner) return false;
             
             const pTC = (owner["TC"] || owner["TC Kimlik"] || owner["T.C. No"] || owner["TC / Vergi No"] || "").toString().trim();
-            if (pTC && pTC.includes(fallbackName)) return true;
+            if (pTC && pTC.includes(normalizedQuery)) return true;
+
+            const pName = normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || owner["İşletme Adı"] || "");
+            if (pName && pName.includes(normalizedQuery)) return true;
+
             return false;
         });
     }
