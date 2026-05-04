@@ -81,8 +81,9 @@
 
         <div class="search-container ui-hidden" id="search-container">
             <div class="search-box">
-                <input type="text" id="global-search" placeholder="Örn: köy hamzabey ada 101,102 parsel 43,44">
+                <input type="text" id="global-search" placeholder="Örn: TC No, İsim veya köy adı">
                 <button id="search-button">Ara</button>
+                <button id="print-report-btn" class="print-btn" title="Kontrol Tutanağı Yazdır">🖨️ Rapor</button>
                 <button id="toggle-search-btn" title="Gizle">✖</button>
             </div>
         </div>
@@ -154,6 +155,47 @@
 
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Print Report Container (Hidden initially) -->
+    <div id="print-container" class="hidden">
+        <button id="close-print-btn" class="close-print-btn no-print">✖ Kapat</button>
+        <div class="print-header">
+            <h2 id="print-title"><span id="print-year">2024</span> YILI YEM BİTKİLERİ DESTEĞİ<br>KONTROL TUTANAĞI</h2>
+            <div class="print-info-grid">
+                <div class="info-row"><span class="info-label">İLİ</span><span class="info-value">: BURSA</span></div>
+                <div class="info-row"><span class="info-label">İLÇESİ</span><span class="info-value">: İNEGÖL</span></div>
+                <div class="info-row"><span class="info-label">KÖYÜ / MAHALLESİ</span><span class="info-value" id="print-mahalle">: </span></div>
+                <div class="info-row"><span class="info-label">ADI SOYADI / TİCARİ ÜNVANI</span><span class="info-value" id="print-isim">: </span></div>
+                <div class="info-row"><span class="info-label">T.C. KİMLİK NO / VERGİ NO</span><span class="info-value" id="print-tc">: </span></div>
+            </div>
+        </div>
+        <div id="print-maps-grid" class="print-maps-grid">
+            <!-- Parsel cards will be injected here -->
+        </div>
+        <div class="print-footer">
+            <table class="signature-table">
+                <tr>
+                    <td class="sig-label-col"></td>
+                    <td colspan="2" class="sig-title-top">Teknik Eleman</td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td class="sig-title">Kontrol Eden</td>
+                    <td class="sig-title">Kontrol Eden</td>
+                </tr>
+                <tr>
+                    <td class="sig-label">Adı Soyadı<span class="sig-colon">:</span></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td class="sig-label sig-tall">İmza<span class="sig-colon">:</span></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+            </table>
         </div>
     </div>
 

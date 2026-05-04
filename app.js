@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.8.5";
+const APP_VERSION = "1.9.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -843,11 +843,22 @@ function setupSearch() {
     const searchContainer = document.getElementById('search-container');
     const toggleSearchBtn = document.getElementById('toggle-search-btn');
     const showSearchBtn = document.getElementById('show-search');
+    const printReportBtn = document.getElementById('print-report-btn');
+    const closePrintBtn = document.getElementById('close-print-btn');
 
     searchBtn.onclick = () => executeSearch(searchInput.value);
     searchInput.onkeypress = (e) => {
         if (e.key === 'Enter') executeSearch(searchInput.value);
     };
+
+    if (printReportBtn) {
+        printReportBtn.onclick = () => generateReport(searchInput.value);
+    }
+    if (closePrintBtn) {
+        closePrintBtn.onclick = () => {
+            document.getElementById('print-container').classList.add('hidden');
+        };
+    }
 
     // Toggle Search Visibility
     toggleSearchBtn.onclick = () => {
@@ -944,16 +955,32 @@ function executeSearch(query) {
         });
     }
 
+    // Extract TC searching as well, which was missing in pattern 2 fallback
+    if (results.length === 0 && fallbackName) {
+        // Just try searching by TC or matching anything globally
+        results = gmlFeatures.filter(f => {
+            const owner = parselData.find(d => {
+                const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+                const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+                return dAda === f.ada && dParsel === f.parsel;
+            });
+            if (!owner) return false;
+            
+            const pTC = (owner["TC"] || owner["TC Kimlik"] || owner["T.C. No"] || owner["TC / Vergi No"] || "").toString().trim();
+            if (pTC && pTC.includes(fallbackName)) return true;
+            return false;
+        });
+    }
+
+    return results;
+}
+
+function executeSearch(query) {
+    const results = findParcelsByQuery(query);
+    
     if (results.length > 0) {
         const bounds = L.latLngBounds();
         results.forEach(f => {
-            const poly = mapPolygons.find(p => {
-                // This is a bit slow but ensures we find the right polygon
-                // Better would be to store ref in feature
-                return p.getBounds().getCenter().lat.toFixed(6) === L.polygon(f.coords).getBounds().getCenter().lat.toFixed(6);
-            });
-
-            // Re-find based on ada/parsel which is more reliable
             const foundPoly = mapPolygons.find(p => p._ada === f.ada && p._parsel === f.parsel);
 
             if (foundPoly) {
@@ -973,6 +1000,132 @@ function executeSearch(query) {
     } else {
         alert("Sonuç bulunamadı.");
     }
+}
+
+async function generateReport(query) {
+    if (!query) {
+        alert("Lütfen TC No, isim veya köy adı giriniz.");
+        return;
+    }
+    
+    showLoading("Rapor hazırlanıyor...");
+    
+    setTimeout(async () => {
+        try {
+            const results = findParcelsByQuery(query);
+            if (results.length === 0) {
+                alert("Raporlanacak parsel bulunamadı.");
+                hideLoading();
+                return;
+            }
+
+            // Mahalleye göre, sonra Ada, sonra Parsele göre sırala
+            results.sort((a, b) => {
+                const m = a.mahalle.localeCompare(b.mahalle, 'tr');
+                if (m !== 0) return m;
+                const aAda = parseInt(a.ada) || 0;
+                const bAda = parseInt(b.ada) || 0;
+                if (aAda !== bAda) return aAda - bAda;
+                const aParsel = parseInt(a.parsel) || 0;
+                const bParsel = parseInt(b.parsel) || 0;
+                return aParsel - bParsel;
+            });
+
+            // Başlık Bilgilerini Topla
+            let allMahalleler = new Set();
+            let matchedName = "";
+            let matchedTC = "";
+            let totalArea = 0;
+
+            results.forEach(f => {
+                if (f.mahalle) allMahalleler.add(f.mahalle);
+                const owner = parselData.find(d => {
+                    const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+                    const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+                    return dAda === f.ada && dParsel === f.parsel;
+                });
+                
+                if (owner) {
+                    if (!matchedName) matchedName = owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || owner["İşletme Adı"] || "";
+                    if (!matchedTC) matchedTC = owner["TC"] || owner["TC Kimlik"] || owner["T.C. No"] || owner["TC / Vergi No"] || "";
+                }
+            });
+
+            document.getElementById('print-year').innerText = new Date().getFullYear();
+            
+            let mahalleStr = Array.from(allMahalleler).join(", ");
+            if (allMahalleler.size > 2) mahalleStr = "ÇEŞİTLİ MAHALLELER";
+            
+            document.getElementById('print-mahalle').innerText = ": " + mahalleStr;
+            document.getElementById('print-isim').innerText = ": " + (matchedName || query.toUpperCase());
+            document.getElementById('print-tc').innerText = ": " + (matchedTC || "-");
+
+            const grid = document.getElementById('print-maps-grid');
+            grid.innerHTML = '';
+            
+            // Render HTML
+            results.forEach((f, idx) => {
+                const owner = parselData.find(d => {
+                    const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+                    const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+                    return dAda === f.ada && dParsel === f.parsel;
+                });
+                const urun = owner ? (owner["Ürün"] || owner["ÜRÜN"] || "-") : "-";
+
+                const card = document.createElement('div');
+                card.className = 'print-card';
+                card.innerHTML = `
+                    <div class="print-card-title">Mahalle: ${f.mahalle} | Ada: ${f.ada} | Parsel: ${f.parsel} | Ürün: ${urun}</div>
+                    <div id="print-map-${idx}" class="print-map-container"></div>
+                `;
+                grid.appendChild(card);
+            });
+
+            document.getElementById('print-container').classList.remove('hidden');
+
+            // Draw Leaflet Maps
+            // We need to wait a tiny bit for the DOM to render the new divs so Leaflet can get their sizes
+            await new Promise(r => setTimeout(r, 100));
+
+            for (let i = 0; i < results.length; i++) {
+                const f = results[i];
+                let pMap = L.map(`print-map-${i}`, {
+                    zoomControl: false,
+                    attributionControl: false,
+                    dragging: false,
+                    scrollWheelZoom: false,
+                    doubleClickZoom: false,
+                    boxZoom: false,
+                    keyboard: false
+                });
+
+                L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                    maxZoom: 20
+                }).addTo(pMap);
+
+                let poly = L.polygon(f.coords, {
+                    color: '#e74c3c',
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.1
+                }).addTo(pMap);
+
+                pMap.fitBounds(poly.getBounds());
+            }
+
+            hideLoading();
+            
+            // Wait for tiles to load before print
+            setTimeout(() => {
+                window.print();
+            }, 1500);
+
+        } catch (err) {
+            console.error(err);
+            alert("Rapor oluşturulurken hata oluştu: " + err.message);
+            hideLoading();
+        }
+    }, 100);
 }
 
 function setupTools() {
