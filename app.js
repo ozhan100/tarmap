@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.9.1";
+const APP_VERSION = "1.9.5";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -1081,7 +1081,17 @@ async function generateReport(query) {
             let totalArea = 0;
 
             results.forEach(f => {
-                if (f.mahalle) allMahalleler.add(f.mahalle);
+                let mahalleAdi = f.mahalle || "";
+                if (!mahalleAdi && !f.tc && !f.isletme) {
+                    const owner = parselData.find(d => {
+                        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
+                        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+                        return dAda === f.ada && dParsel === f.parsel;
+                    });
+                    if (owner) mahalleAdi = owner["Köy"] || owner["KÖY"] || owner["Mahalle"] || "";
+                }
+                
+                if (mahalleAdi) allMahalleler.add(mahalleAdi);
                 
                 if (f.isletme || f.tc) {
                     if (!matchedName) matchedName = f.isletme || "";
@@ -1115,20 +1125,24 @@ async function generateReport(query) {
             // Render HTML
             results.forEach((f, idx) => {
                 let urun = f.urun || "-";
+                let mahalleAdi = f.mahalle || "";
                 
-                if (!f.urun && !f.isletme) {
+                if ((!f.urun || !mahalleAdi) && !f.isletme) {
                     const owner = parselData.find(d => {
                         const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
                         const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
                         return dAda === f.ada && dParsel === f.parsel;
                     });
-                    if (owner) urun = owner["Ürün"] || owner["ÜRÜN"] || "-";
+                    if (owner) {
+                        urun = owner["Ürün"] || owner["ÜRÜN"] || "-";
+                        if (!mahalleAdi) mahalleAdi = owner["Köy"] || owner["KÖY"] || owner["Mahalle"] || "";
+                    }
                 }
 
                 const card = document.createElement('div');
                 card.className = 'print-card';
                 card.innerHTML = `
-                    <div class="print-card-title">Mahalle: ${f.mahalle} | Ada: ${f.ada} | Parsel: ${f.parsel} | Ürün: ${urun}</div>
+                    <div class="print-card-title" title="${mahalleAdi} - Ada:${f.ada} Par:${f.parsel} - ${urun}">${mahalleAdi} - Ada:${f.ada} Par:${f.parsel} - ${urun}</div>
                     <div id="print-map-${idx}" class="print-map-container"></div>
                 `;
                 grid.appendChild(card);
@@ -1152,14 +1166,12 @@ async function generateReport(query) {
                     keyboard: false
                 });
 
-                L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-                    maxZoom: 20
-                }).addTo(pMap);
-
+                // Google Map arka planı kapatıldı, sadece beyaz bir fon üzerine poligon çizilecek
                 let poly = L.polygon(f.coords, {
-                    color: '#e74c3c',
+                    color: '#e74c3c', // Kırmızı çizgi
                     weight: 3,
                     opacity: 1,
+                    fillColor: '#e74c3c',
                     fillOpacity: 0.1
                 }).addTo(pMap);
 
