@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.7.5";
+const APP_VERSION = "1.7.6";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -351,8 +351,8 @@ function joinFarmerData() {
     });
 
     parselData.forEach(p => {
-        const pTC = (p["TC"] || p["TC Kimlik"] || p["T.C. No"] || "").toString().trim();
-        const pName = normalizeText(p["İşletme"] || p["Ad Soyad"] || p["Sahibi"]);
+        const pTC = (p["TC"] || p["TC Kimlik"] || p["T.C. No"] || p["TC / Vergi No"] || "").toString().trim();
+        const pName = normalizeText(p["İşletme"] || p["Ad Soyad"] || p["Sahibi"] || p["İşletme Adı"]);
 
         let farmer = null;
         if (pTC && farmerMapByTC.has(pTC)) {
@@ -363,7 +363,7 @@ function joinFarmerData() {
 
         if (farmer) {
             p._farmerInfo = farmer;
-            const phone = farmer["TELEFON"] || farmer["Telefon"] || farmer["Cep Tel"] || farmer["GSM"] || farmer["CEP TEL"];
+            const phone = farmer["TELEFON"] || farmer["Telefon"] || farmer["Cep Tel"] || farmer["GSM"] || farmer["CEP TEL"] || farmer["ADI/UNVANI"];
             p._phone = phone ? phone.toString().trim() : null;
         }
     });
@@ -423,8 +423,8 @@ function renderPolygons() {
     // Hız için parsel verilerini Map'e al (Key: Ada-Parsel)
     const ownerMap = new Map();
     parselData.forEach(d => {
-        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
-        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
+        const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || d["Ada No"] || "").toString().trim();
+        const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || d["Parsel No"] || "").toString().trim();
         ownerMap.set(`${dAda}-${dParsel}`, d);
     });
 
@@ -480,13 +480,13 @@ window.showParselInfo = function (feature, owner) {
     // Find farmer details if possible
     let farmerInfo = null;
     if (owner) {
-        const ownerTC = (owner["TC"] || "").toString().trim();
-        const ownerName = normalizeText(owner["İşletme"]);
+        const ownerTC = (owner["TC"] || owner["TC / Vergi No"] || "").toString().trim();
+        const ownerName = normalizeText(owner["İşletme"] || owner["İşletme Adı"]);
 
         farmerInfo = farmerData.find(f => {
-            const fTC = (f["TC"] || f["T.C. No"] || f["T.C."] || f["TC No"] || "").toString().trim();
+            const fTC = (f["TC"] || f["T.C. No"] || f["T.C."] || f["TC No"] || f["TC_V NO"] || "").toString().trim();
             if (ownerTC && fTC === ownerTC) return true;
-            const fName = normalizeText(f["Ad Soyad"] || f["Adı Soyadı"] || f["İşletme Adı"] || f["ADI SOYADI"]);
+            const fName = normalizeText(f["Ad Soyad"] || f["Adı Soyadı"] || f["İşletme Adı"] || f["ADI SOYADI"] || f["ADI/UNVANI"]);
             if (ownerName && fName === ownerName) return true;
             return false;
         });
@@ -632,6 +632,20 @@ window.saveTespit = function () {
     const aciklamaVal = document.getElementById('tespit-aciklama').value;
     const today = new Date().toLocaleDateString('tr-TR');
     const todayTime = new Date().toLocaleDateString('tr-TR') + " " + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+    // Ensure phone is updated if it was missing but farmer info exists
+    if (owner && !owner._phone) {
+        const f = farmerData.find(f => {
+            const ownerTC = (owner["TC"] || owner["TC / Vergi No"] || "").toString().trim();
+            const fTC = (f["TC"] || f["T.C. No"] || f["T.C."] || f["TC No"] || f["TC_V NO"] || "").toString().trim();
+            return ownerTC && fTC === ownerTC;
+        });
+        if (f) {
+            owner._farmerInfo = f;
+            const phone = f["TELEFON"] || f["Telefon"] || f["Cep Tel"] || f["GSM"] || f["CEP TEL"] || f["ADI/UNVANI"];
+            owner._phone = phone;
+        }
+    }
 
     if (!urunVal) {
         alert("Lütfen tespit edilen ürünü giriniz!");
