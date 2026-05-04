@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.7.3";
+const APP_VERSION = "1.7.5";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -202,8 +202,6 @@ function setupSettings() {
     const modal = document.getElementById('settings-modal');
     const openBtn = document.getElementById('open-settings');
     const closeBtn = document.getElementById('close-settings');
-    const resetBtn = document.getElementById('reset-defaults');
-
     const csvInput = document.getElementById('local-csv');
     const gmlInput = document.getElementById('local-gml');
     const excelInput = document.getElementById('local-excel');
@@ -211,11 +209,6 @@ function setupSettings() {
 
     openBtn?.addEventListener('click', () => modal.classList.remove('hidden'));
     closeBtn?.addEventListener('click', () => modal.classList.add('hidden'));
-    resetBtn?.addEventListener('click', () => {
-        if (confirm("Varsayılan verilere geri dönmek istiyor musunuz?")) {
-            location.reload();
-        }
-    });
 
     gmlInput?.addEventListener('change', (e) => selectedFiles.gml = e.target.files[0]);
     csvInput?.addEventListener('change', (e) => selectedFiles.csv = e.target.files[0]);
@@ -251,7 +244,21 @@ async function processAllData() {
         const data = await selectedFiles.excel.arrayBuffer();
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        
+        // Akıllı Başlık Tespiti: İlk 10 satırı kontrol et, 'TC' veya 'ADI' geçen satırı başlık kabul et
+        let rangeIdx = 0;
+        for (let i = 0; i < 10; i++) {
+            const temp = XLSX.utils.sheet_to_json(firstSheet, { range: i, header: 1 })[0];
+            if (temp && temp.some(cell => {
+                const c = String(cell).toUpperCase();
+                return c.includes('TC') || c.includes('ADI') || c.includes('UNVANI') || c.includes('SOYAD');
+            })) {
+                rangeIdx = i;
+                break;
+            }
+        }
+
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { range: rangeIdx });
         farmerData = jsonData.map(row => {
             const newRow = {};
             for (let key in row) {
@@ -269,7 +276,21 @@ async function processAllData() {
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+            
+            // Akıllı Başlık Tespiti: 'Ada' veya 'Parsel' geçen satırı bul (İlk 10 satırı tara)
+            let rangeIdx = 0;
+            for (let i = 0; i < 10; i++) {
+                const temp = XLSX.utils.sheet_to_json(firstSheet, { range: i, header: 1 })[0];
+                if (temp && temp.some(cell => {
+                    const c = String(cell).toUpperCase();
+                    return c.includes('ADA') || c.includes('PARSEL');
+                })) {
+                    rangeIdx = i;
+                    break;
+                }
+            }
+
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { range: rangeIdx });
             parselData = jsonData.map(row => {
                 const newRow = {};
                 for (let key in row) {
