@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.9.5";
+const APP_VERSION = "1.9.6";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -353,6 +353,7 @@ function renderFromMasterData(records) {
         const owner   = hasInfo ? {
             'İşletme Adı': rec.isletme,
             'TC':          rec.tc,
+            'Köy':         rec.mahalle,
             'Ürün':        rec.urun,
             'Alan':        rec.alan,
             'Tarım Şekli': rec.tarim_sekli,
@@ -446,7 +447,7 @@ async function buildMasterData(progressCb) {
         return {
             ada:        feat.ada,
             parsel:     feat.parsel,
-            mahalle:    feat.mahalle,
+            mahalle:    feat.mahalle || p['Köy'] || p['KÖY'] || p['Mahalle'] || '',
             coords:     feat.coords,
             isletme:    p['İşletme Adı'] || p['İşletme'] || '',
             tc:         pTC,
@@ -1082,7 +1083,7 @@ async function generateReport(query) {
 
             results.forEach(f => {
                 let mahalleAdi = f.mahalle || "";
-                if (!mahalleAdi && !f.tc && !f.isletme) {
+                if (!mahalleAdi) {
                     const owner = parselData.find(d => {
                         const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
                         const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
@@ -1127,22 +1128,24 @@ async function generateReport(query) {
                 let urun = f.urun || "-";
                 let mahalleAdi = f.mahalle || "";
                 
-                if ((!f.urun || !mahalleAdi) && !f.isletme) {
+                if (!f.urun || !mahalleAdi) {
                     const owner = parselData.find(d => {
                         const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
                         const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim();
                         return dAda === f.ada && dParsel === f.parsel;
                     });
                     if (owner) {
-                        urun = owner["Ürün"] || owner["ÜRÜN"] || "-";
+                        if (!f.urun) urun = owner["Ürün"] || owner["ÜRÜN"] || "-";
                         if (!mahalleAdi) mahalleAdi = owner["Köy"] || owner["KÖY"] || owner["Mahalle"] || "";
                     }
                 }
+                
+                const titleStr = mahalleAdi ? `${mahalleAdi} - Ada:${f.ada} Par:${f.parsel} - ${urun}` : `Ada:${f.ada} Par:${f.parsel} - ${urun}`;
 
                 const card = document.createElement('div');
                 card.className = 'print-card';
                 card.innerHTML = `
-                    <div class="print-card-title" title="${mahalleAdi} - Ada:${f.ada} Par:${f.parsel} - ${urun}">${mahalleAdi} - Ada:${f.ada} Par:${f.parsel} - ${urun}</div>
+                    <div class="print-card-title" title="${titleStr}">${titleStr}</div>
                     <div id="print-map-${idx}" class="print-map-container"></div>
                 `;
                 grid.appendChild(card);
