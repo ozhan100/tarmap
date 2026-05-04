@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.8.5";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -196,6 +196,21 @@ async function initLeafletMap() {
     setupSettings();
     startLocationTracking();
     loadingOverlay.classList.add('hidden');
+}
+
+async function loadData() {
+    try {
+        const response = await fetch('TarmapVeri.json');
+        if (response.ok) {
+            const records = await response.json();
+            renderFromMasterData(records);
+            console.log(`✅ ${records.length} parsel TarmapVeri.json'dan otomatik yüklendi.`);
+        } else {
+            console.warn('TarmapVeri.json bulunamadı. Lütfen Ayarlar menüsünden veri yükleyin.');
+        }
+    } catch (error) {
+        console.warn('TarmapVeri.json otomatik yüklenemedi:', error.message);
+    }
 }
 
 function setupSettings() {
@@ -452,14 +467,15 @@ async function readExcelOrCsvSmart(file, keywordSets) {
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
         const sheet    = workbook.Sheets[workbook.SheetNames[0]];
 
-        // Akıllı başlık tespiti
+        // Akıllı başlık tespiti: keyword setindeki TÜM kelimelerin aynı satırda bulunması gerekir
         let rangeIdx = 0;
+        const primaryKws = keywordSets[0]; // En spesifik set ([örn: 'ADA', 'PARSEL'])
         for (let i = 0; i < 12; i++) {
             const row = XLSX.utils.sheet_to_json(sheet, { range: i, header: 1 })[0] || [];
-            const hit = keywordSets.some(kws =>
-                row.some(cell => kws.some(kw => String(cell).toUpperCase().includes(kw)))
-            );
-            if (hit) { rangeIdx = i; break; }
+            const rowUpper = row.map(c => String(c || '').toUpperCase());
+            // TÜM primer anahtar kelimeler satırda ayrı ayrı bulunmalı
+            const allFound = primaryKws.every(kw => rowUpper.some(cell => cell.includes(kw)));
+            if (allFound) { rangeIdx = i; break; }
         }
         const jsonData = XLSX.utils.sheet_to_json(sheet, { range: rangeIdx });
         return jsonData.map(row => {
@@ -809,235 +825,15 @@ window.showParselInfo = function (feature, owner) {
                 <div class="detail-label">Tarım Şekli</div>
                 <div class="detail-value">${owner["Tarım Şekli"] || "-"}</div>
             </div>
-            <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
-                <button onclick="enableTespitMode()" class="action-btn-small blue">📋 Tespit Gir</button>
-            </div>
         ` : `
             <div class="detail-item">
                 <div class="detail-label">Bilgi</div>
                 <div class="detail-value">Bu parsel için CSV verisi bulunamadı.</div>
             </div>
-            <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
-                <button onclick="enableTespitMode()" class="action-btn-small blue">📋 Tespit Gir</button>
-            </div>
         `}
     `;
     infoPanel.classList.remove('hidden');
 }
-
-window.enableTespitMode = function () {
-    const ada = document.getElementById('panel-ada').innerText;
-    const parsel = document.getElementById('panel-parsel').innerText;
-    const today = new Date().toLocaleDateString('tr-TR');
-
-    // Mevcut verileri çek (Pre-fill)
-    const currentUrun = currentOwnerData ? (currentOwnerData["Ürün"] || "") : "";
-    const currentAlan = currentOwnerData ? (currentOwnerData["Alan"] || currentOwnerData["ParselAlanı"] || "").toString().replace(',', '.') : "";
-
-    parselDetails.innerHTML = `
-        <div class="tespit-form">
-            <div class="tespit-row">
-                <div class="tespit-label">Veri Tabanı</div>
-                <select id="tespit-db" class="tespit-input">
-                    <option value="YB">Yem Bitkisi (YB)</option>
-                    <option value="SF">Sertifikalı Fidan (SF)</option>
-                    <option value="AF">Afet Destek (AF)</option>
-                </select>
-            </div>
-            <div class="tespit-row">
-                <div class="tespit-label">Ada / Parsel</div>
-                <div class="tespit-value-display">${ada} / ${parsel}</div>
-            </div>
-            <div class="tespit-row">
-                <div class="tespit-label">Tespit Edilen Ürün</div>
-                <input type="text" id="tespit-urun" class="tespit-input" value="${currentUrun}" placeholder="Ürün adı giriniz">
-            </div>
-            <div class="tespit-row">
-                <div class="tespit-label">Tespit Alanı (da)</div>
-                <input type="number" id="tespit-alan" class="tespit-input" value="${currentAlan}" placeholder="0" step="0.01">
-            </div>
-            <div class="tespit-row">
-                <div class="tespit-label">Açıklama</div>
-                <textarea id="tespit-aciklama" class="tespit-input" placeholder="Notlarınızı buraya yazın..."></textarea>
-            </div>
-            <div class="tespit-row">
-                <div class="tespit-label">Tespit Yapan</div>
-                <div class="tespit-value-display">${currentUser || 'Bilinmiyor'}</div>
-            </div>
-            <div class="tespit-row">
-                <div class="tespit-label">Tespit Tarihi</div>
-                <div class="tespit-value-display">${today}</div>
-            </div>
-            <div class="edit-actions" style="margin-top: 15px; display: flex; gap: 10px;">
-                <button onclick="saveTespit()" class="action-btn-small green">💾 Kaydet ve İndir</button>
-                <button onclick="cancelTespit()" class="action-btn-small red">❌ İptal</button>
-            </div>
-        </div>
-    `;
-};
-
-window.cancelTespit = function () {
-    if (activeFeature) {
-        window.showParselInfo(activeFeature, currentOwnerData);
-    } else {
-        infoPanel.classList.add('hidden');
-    }
-};
-
-
-
-window.saveTespit = function () {
-    const ada = document.getElementById('panel-ada').innerText;
-    const parsel = document.getElementById('panel-parsel').innerText;
-    const dbTag = document.getElementById('tespit-db').value;
-    const urunVal = document.getElementById('tespit-urun').value;
-    const alanVal = document.getElementById('tespit-alan').value;
-    const aciklamaVal = document.getElementById('tespit-aciklama').value;
-    const today = new Date().toLocaleDateString('tr-TR');
-    const todayTime = new Date().toLocaleDateString('tr-TR') + " " + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-
-    // Ensure phone is updated if it was missing but farmer info exists
-    if (owner && !owner._phone) {
-        const f = farmerData.find(f => {
-            const ownerTC = (owner["TC"] || owner["TC / Vergi No"] || "").toString().trim();
-            const fTC = (f["TC"] || f["T.C. No"] || f["T.C."] || f["TC No"] || f["TC_V NO"] || "").toString().trim();
-            return ownerTC && fTC === ownerTC;
-        });
-        if (f) {
-            owner._farmerInfo = f;
-            const phone = f["TELEFON"] || f["Telefon"] || f["Cep Tel"] || f["GSM"] || f["CEP TEL"] || f["ADI/UNVANI"];
-            owner._phone = phone;
-        }
-    }
-
-    if (!urunVal) {
-        alert("Lütfen tespit edilen ürünü giriniz!");
-        return;
-    }
-
-    const owner = currentOwnerData || {};
-    let satir = [];
-    let dosyaAdi = "";
-
-    // Calculate phone (mirroring showParselInfo logic exactly)
-    let phone = owner._phone;
-    if (!phone && owner._farmerInfo) {
-        const f = owner._farmerInfo;
-        phone = f["TELEFON"] || f["Telefon"] || f["Cep Tel"] || f["GSM"];
-    }
-    if (!phone && owner._farmerInfo) {
-        phone = Object.values(owner._farmerInfo).find(v => {
-            const s = String(v).replace(/\s/g, "");
-            return /^[0-9]{10,11}$/.test(s);
-        });
-    }
-    phone = phone ? phone.toString().trim() : "---";
-
-    const mahalle = activeFeature?.properties?.Mahalle || activeFeature?.mahalle || owner["Mahalle"] || "---";
-    const kisiAdi = owner["İşletme"] || owner["Adı Soyadı"] || "---";
-    const tcNo = owner["TC"] || owner["T.C. No"] || "---";
-    const originalUrun = owner["Ürün"] || "---";
-    const uretimCesidi = owner["Üretim Çeşidi"] || owner["Üretim Şekli"] || "---";
-    const tarimParselNo = owner["Tarım Parsel No"] || "---";
-    const originalAlan = (owner["Alan"] || owner["ParselAlanı"] || "---").toString().replace(",", ".");
-    const ekimTarihi = owner["Ekim Tarihi"] || "---";
-    const currentYear = new Date().getFullYear().toString();
-
-    if (dbTag === "YB" || dbTag === "SF") {
-        dosyaAdi = dbTag === "YB" ? "YBVeritabani.xlsx" : "SFVeritabani.xlsx";
-        const durum = dbTag === "YB" ? "TAMAM" : "İLK KAYIT";
-
-        // ZiraiParselVeriTabaniOrtak Columns (26 columns)
-        satir = [
-            "otomatik",       // 0: SIRA NO
-            mahalle,          // 1: MAHALLE
-            ada,              // 2: ADA
-            parsel,           // 3: PARSEL
-            tcNo,             // 4: TC KİMLİK NUMARASI
-            kisiAdi,          // 5: KİŞİ ADI
-            originalUrun,     // 6: ÜRÜN
-            uretimCesidi,     // 7: ÜRETİM ÇEŞİDİ
-            tarimParselNo,    // 8: TARIM PARSEL NO
-            originalAlan,     // 9: EKİLİ ALAN
-            originalAlan,     // 10: PARSEL ALANI
-            ekimTarihi,       // 11: EKİM TARİHİ
-            urunVal,          // 12: TESPİT EDİLEN ÜRÜN
-            alanVal,          // 13: TESPİT EDİLEN ÜRÜN ALANI
-            aciklamaVal,      // 14: AÇIKLAMA
-            currentUser,      // 15: TESPİTİ YAPAN PERSONEL
-            todayTime,        // 16: TESPİT TARİHİ
-            phone,            // 17: TELEFON
-            durum,            // 18: DURUM
-            currentYear,      // 19: DÖNEM
-            "---",            // 20: EVRAK KAYIT NO
-            "otomatik",       // 21: KAYIT SIRA NO
-            currentUser,      // 22: İLK KAYIT EDEN
-            todayTime,        // 23: KAYIT TARİHİ
-            currentUser,      // 24: SON DÜZENLEYEN
-            todayTime         // 25: DÜZENLEME TARİHİ
-        ];
-    } else if (dbTag === "AF") {
-        dosyaAdi = "ADVeritabani.xlsx";
-
-        // ADVeritabani Columns (33 columns indexed 0-32)
-        satir = [
-            "otomatik",       // 0: SIRA NO
-            mahalle,          // 1: MAHALLE
-            ada,              // 2: ADA
-            parsel,           // 3: PARSEL
-            tcNo,             // 4: TC KİMLİK NUMARASI
-            kisiAdi,          // 5: KİŞİ ADI
-            originalUrun,     // 6: ÜRÜN
-            uretimCesidi,     // 7: ÜRETİM ÇEŞİDİ
-            tarimParselNo,    // 8: TARIM PARSEL NO
-            originalAlan,     // 9: EKİLİ ALAN
-            originalAlan,     // 10: PARSEL ALANI
-            ekimTarihi,       // 11: EKİM TARİHİ
-            owner["Sigorta"] || "---", // 12: TARSİM DURUMU
-            "---",            // 13: DOĞAL AFETİN ADI
-            today,            // 14: AFET TARİHİ
-            "otomatik",       // 15: KAYIT SIRA NO
-            urunVal,          // 16: ETKİLENEN ÜRÜN
-            alanVal,          // 17: ETKİLENEN ÜRÜN ALANI
-            "---",            // 18: HASAR ORANI
-            "---",            // 19: ÜRÜN DEKAR BAŞI MALİYETİ
-            "---",            // 20: YAPILAN MASRAF TUTARI
-            "---",            // 21: ÜRÜN DEKAR BAŞI VERİM ORANI
-            "---",            // 22: TOPLAM HAKEDİŞ
-            aciklamaVal,      // 23: AÇIKLAMA
-            "Hayır",          // 24: BAKANLIĞA KAYIT DURUMU
-            currentUser,      // 25: TESPİTİ YAPAN PERSONEL
-            todayTime,        // 26: TESPİT TARİHİ
-            phone,            // 27: TELEFON
-            "İLK KAYIT",      // 28: DURUM
-            currentUser,      // 29: İLK KAYIT EDEN
-            todayTime,        // 30: KAYIT TARİHİ
-            currentUser,      // 31: SON DÜZENLEYEN
-            todayTime         // 32: DÜZENLEME TARİHİ
-        ];
-    }
-
-    const sekreterData = {
-        islem: "append",
-        dosya: dosyaAdi,
-        satir: satir
-    };
-
-    const jsonString = JSON.stringify(sekreterData, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${dbTag}_tespit_${ada}_${parsel}_${new Date().getTime()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    alert("Tespit dosyası 'Sekreter' formatında oluşturuldu.");
-    cancelTespit();
-};
 
 
 
