@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.0.8";
+const APP_VERSION = "2.0.9";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -845,19 +845,27 @@ window.generateReport = async () => {
     const appMain = document.getElementById('app');
     const printContainer = document.getElementById('print-container');
     
+    // Harita uydu katmanını gizle ve arka planı beyaz yap
+    const tilePane = document.querySelector('.leaflet-tile-pane');
+    if (tilePane) tilePane.style.display = 'none';
+    const mapContainer = document.getElementById('map');
+    const oldBg = mapContainer.style.backgroundColor;
+    mapContainer.style.backgroundColor = 'white';
+
     // Save current map state
     const currentCenter = map.getCenter();
     const currentZoom = map.getZoom();
 
     for (const p of ownerParcels) {
         const bounds = L.polygon(p.coords).getBounds();
-        map.fitBounds(bounds, { animate: false });
+        // zoomu biraz geriye çekelim ki parsel tam sığsın (padding eklendi)
+        map.fitBounds(bounds, { animate: false, padding: [20, 20] });
         
         // Render wait - haritanın yüklenmesini bekle
         await new Promise(r => setTimeout(r, 600));
 
         try {
-            const canvas = await html2canvas(document.getElementById('map'), {
+            const canvas = await html2canvas(mapContainer, {
                 useCORS: true,
                 logging: false,
                 ignoreElements: (el) => el.classList.contains('leaflet-control-container')
@@ -883,6 +891,10 @@ window.generateReport = async () => {
             console.error("Harita render hatası:", err);
         }
     }
+
+    // Harita uydu katmanını ve arka planı geri getir
+    if (tilePane) tilePane.style.display = '';
+    mapContainer.style.backgroundColor = oldBg;
 
     // Ekranı rapor görünümüne al
     if (appMain && printContainer) {
