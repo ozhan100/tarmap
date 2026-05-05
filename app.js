@@ -433,6 +433,7 @@ async function buildMasterData(progressCb) {
             const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
             const farmer = (pTC && farmerByTC.get(pTC)) || (pName && farmerByName.get(pName)) || {};
             const phone  = farmer['TELEFON'] || farmer['Telefon'] || farmer['Cep Tel'] || farmer['GSM'] || farmer['CEP TEL'] || '';
+            const adres  = farmer['ADRES'] || farmer['Adres'] || farmer['Adresi'] || p['Köy'] || p['KÖY'] || p['Mahalle'] || p['MAHALLE'] || p['Köyü'] || '';
             
             return {
                 ada:        feat.ada,
@@ -445,7 +446,8 @@ async function buildMasterData(progressCb) {
                 alan:       p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
                 tarim_sekli:p['Tarım Şekli'] || '',
                 ekim_tarihi:p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
-                telefon:    phone
+                telefon:    phone,
+                adres:      adres
             };
         });
     });
@@ -718,7 +720,6 @@ function showParselInfo(feature, owner) {
                 ${owner['Ekim Tarihi'] ? `<p><strong>Ekim Tarihi:</strong> ${owner['Ekim Tarihi']}</p>` : ''}
                 ${owner._phone ? `<p><strong>Telefon:</strong> <a href="tel:${owner._phone}" class="text-blue-600 underline">${owner._phone}</a></p>` : ''}
             </div>
-            <button onclick="generateReport()" class="mt-4 w-full bg-green-600 text-white py-2 rounded">Rapor Al</button>
         `;
     } else {
         html += `<p class="text-gray-500 italic">Bu parsel için üretim kaydı bulunamadı.</p>`;
@@ -835,8 +836,8 @@ window.generateReport = async () => {
     const yearEl = document.getElementById('print-year');
     if (yearEl) yearEl.textContent = new Date().getFullYear();
     
-    // Mahalleleri topla (virgülle ayır)
-    const mahalleler = [...new Set(ownerParcels.map(p => p.mahalle))].join(', ');
+    // Çiftçi Veri Tabanındaki adres/köy bilgisini al (Yoksa parselin bulunduğu mahalleyi kullan)
+    const mahalleler = [...new Set(ownerParcels.map(p => p.adres || p.mahalle))].filter(Boolean).join(', ');
     document.getElementById('print-mahalle').textContent = `: ${mahalleler || '-'}`;
 
     const grid = document.getElementById('print-maps-grid');
