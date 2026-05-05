@@ -1,0 +1,10 @@
+# Tüm dosyaları ve klasörleri görmezden gel
+/*
+
+# Sadece istediğimiz dosyaların takibine izin ver
+!index.html
+!app.js
+!style.css
+
+# .gitignore dosyasının kendisini de takip et
+!.gitignore
