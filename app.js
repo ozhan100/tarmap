@@ -190,25 +190,9 @@ async function initLeafletMap() {
 }
 
 async function loadData() {
-    try {
-        // Otomatik yükleme çok büyük veri setlerinde (88k parsel) tarayıcıyı dondurur.
-        // Bu yüzden veriyi sadece belleğe alıyoruz, haritaya hemen çizmiyoruz.
-        const response = await fetch('TarmapVeri.json');
-        if (response.ok) {
-            masterRecords = await response.json();
-            console.log(`✅ ${masterRecords.length} parsel belleğe yüklendi. Çizim için arama yapın.`);
-            
-            // Arama ve diğer listeler için veriyi hazırla
-            gmlFeatures = masterRecords.map(r => ({
-                ada: r.ada,
-                parsel: r.parsel,
-                mahalle: r.mahalle,
-                coords: r.coords
-            }));
-        }
-    } catch (error) {
-        console.warn('TarmapVeri.json otomatik yüklenemedi:', error.message);
-    }
+    // Otomatik yükleme çok büyük veri setlerinde (88k parsel) tarayıcıyı dondurur.
+    // Bu nedenle otomatik yüklemeyi devre dışı bıraktık.
+    console.log('ℹ️ Otomatik veri yükleme devre dışı. Lütfen Ayarlar (⚙️) menüsünden manuel yükleme yapın.');
 }
 
 function setupSettings() {
@@ -239,9 +223,9 @@ function setupSettings() {
         setTimeout(async () => {
             try {
                 const text = await file.text();
-                const records = JSON.parse(text);
-                renderFromMasterData(records);
-                alert(`✅ ${records.length} parsel yüklendi.`);
+                masterRecords = JSON.parse(text);
+                renderFromMasterData(masterRecords);
+                alert(`✅ ${masterRecords.length} parsel yüklendi.`);
             } catch (err) {
                 alert('JSON okunamadı: ' + err.message);
             } finally { hideLoading(); }
@@ -278,7 +262,7 @@ function setupSettings() {
 
         setTimeout(async () => {
             try {
-                const masterRecords = await buildMasterData(updateMergeProgress);
+                masterRecords = await buildMasterData(updateMergeProgress);
                 updateMergeProgress(90, 'Harita çiziliyor...');
                 renderFromMasterData(masterRecords);
                 updateMergeProgress(100, 'Tamamlandı!');
@@ -349,6 +333,7 @@ function renderFromMasterData(records, fitBounds = true) {
             'Ürün':        rec.urun,
             'Alan':        rec.alan,
             'Tarım Şekli': rec.tarim_sekli,
+            'Ekim Tarihi': rec.ekim_tarihi,
             _phone:        rec.telefon || null
         } : null;
 
@@ -418,33 +403,55 @@ async function buildMasterData(progressCb) {
         const mahalle = getCleanMahalle(rawMahalle);
         const ada    = (p['Ada\nNo'] || p['Ada No'] || p['Ada'] || p['AdaNo'] || '').toString().trim().replace(/^0+/, '') || '0';
         const parsel = (p['Parsel\nNo'] || p['Parsel No'] || p['Parsel'] || p['ParselNo'] || '').toString().trim().replace(/^0+/, '') || '0';
-        parselMap.set(`${mahalle}-${ada}-${parsel}`, p);
+        
+        const key = `${mahalle}-${ada}-${parsel}`;
+        if (!parselMap.has(key)) parselMap.set(key, []);
+        parselMap.get(key).push(p);
     });
 
-    const records = gmlFeatures.map(feat => {
+    const records = gmlFeatures.flatMap(feat => {
         const fAda    = feat.ada.toString().replace(/^0+/, '');
         const fParsel = feat.parsel.toString().replace(/^0+/, '');
         const fMahalle = getCleanMahalle(feat.mahalle);
         
-        let p = parselMap.get(`${fMahalle}-${fAda}-${fParsel}`) || {};
+        const pList = parselMap.get(`${fMahalle}-${fAda}-${fParsel}`);
+        
+        if (!pList || pList.length === 0) {
+            return [{
+                ada:        feat.ada,
+                parsel:     feat.parsel,
+                mahalle:    feat.mahalle,
+                coords:     feat.coords,
+                isletme:    '',
+                tc:         '',
+                urun:       '',
+                alan:       '',
+                tarim_sekli:'',
+                ekim_tarihi:'',
+                telefon:    ''
+            }];
+        }
 
-        const pTC   = (p['TC'] || p['TC / Vergi No'] || '').trim();
-        const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
-        const farmer = (pTC && farmerByTC.get(pTC)) || (pName && farmerByName.get(pName)) || {};
-        const phone  = farmer['TELEFON'] || farmer['Telefon'] || farmer['Cep Tel'] || farmer['GSM'] || farmer['CEP TEL'] || '';
-
-        return {
-            ada:        feat.ada,
-            parsel:     feat.parsel,
-            mahalle:    feat.mahalle, // GML'deki mahalle ismini koru
-            coords:     feat.coords,
-            isletme:    p['İşletme Adı'] || p['İşletme'] || '',
-            tc:         pTC,
-            urun:       p['Ürün'] || '',
-            alan:       p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || '',
-            tarim_sekli:p['Tarım Şekli'] || '',
-            telefon:    phone
-        };
+        return pList.map(p => {
+            const pTC   = (p['TC'] || p['TC / Vergi No'] || '').trim();
+            const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
+            const farmer = (pTC && farmerByTC.get(pTC)) || (pName && farmerByName.get(pName)) || {};
+            const phone  = farmer['TELEFON'] || farmer['Telefon'] || farmer['Cep Tel'] || farmer['GSM'] || farmer['CEP TEL'] || '';
+            
+            return {
+                ada:        feat.ada,
+                parsel:     feat.parsel,
+                mahalle:    feat.mahalle,
+                coords:     feat.coords,
+                isletme:    p['İşletme Adı'] || p['İşletme'] || '',
+                tc:         pTC,
+                urun:       p['Ürün'] || '',
+                alan:       p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || '',
+                tarim_sekli:p['Tarım Şekli'] || '',
+                ekim_tarihi:p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
+                telefon:    phone
+            };
+        });
     });
 
     progressCb?.(88, `${records.length} kayıt birleştirildi.`);
@@ -626,6 +633,7 @@ function renderSearchResults(results) {
                     'Ürün': r.urun,
                     'Alan': r.alan,
                     'Tarım Şekli': r.tarim_sekli,
+                    'Ekim Tarihi': r.ekim_tarihi,
                     _phone: r.telefon
                 } : null);
                 resultsPanel.classList.add('hidden');
@@ -655,6 +663,7 @@ function showParselInfo(feature, owner) {
                 <p><strong>Ürün:</strong> ${owner['Ürün']}</p>
                 <p><strong>Alan:</strong> ${owner['Alan']} da</p>
                 <p><strong>Tarım Şekli:</strong> ${owner['Tarım Şekli']}</p>
+                ${owner['Ekim Tarihi'] ? `<p><strong>Ekim Tarihi:</strong> ${owner['Ekim Tarihi']}</p>` : ''}
                 ${owner._phone ? `<p><strong>Telefon:</strong> <a href="tel:${owner._phone}" class="text-blue-600 underline">${owner._phone}</a></p>` : ''}
             </div>
             <button onclick="generateReport()" class="mt-4 w-full bg-green-600 text-white py-2 rounded">Rapor Al</button>
