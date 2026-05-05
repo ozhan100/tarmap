@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.0.3";
+const APP_VERSION = "2.0.4";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -191,11 +191,20 @@ async function initLeafletMap() {
 
 async function loadData() {
     try {
+        // Otomatik yükleme çok büyük veri setlerinde (88k parsel) tarayıcıyı dondurur.
+        // Bu yüzden veriyi sadece belleğe alıyoruz, haritaya hemen çizmiyoruz.
         const response = await fetch('TarmapVeri.json');
         if (response.ok) {
-            const records = await response.json();
-            renderFromMasterData(records);
-            console.log(`✅ ${records.length} parsel TarmapVeri.json'dan otomatik yüklendi.`);
+            masterRecords = await response.json();
+            console.log(`✅ ${masterRecords.length} parsel belleğe yüklendi. Çizim için arama yapın.`);
+            
+            // Arama ve diğer listeler için veriyi hazırla
+            gmlFeatures = masterRecords.map(r => ({
+                ada: r.ada,
+                parsel: r.parsel,
+                mahalle: r.mahalle,
+                coords: r.coords
+            }));
         }
     } catch (error) {
         console.warn('TarmapVeri.json otomatik yüklenemedi:', error.message);
@@ -305,19 +314,21 @@ function hideLoading() {
     if (loadingOverlay) loadingOverlay.classList.add('hidden');
 }
 
-function renderFromMasterData(records) {
-    masterRecords = records;
+function renderFromMasterData(records, fitBounds = true) {
+    // Mevcut poligonları temizle
     mapPolygons.forEach(p => map.removeLayer(p));
     mapPolygons = [];
-    gmlFeatures = [];
-    parselData  = [];
-    farmerData  = [];
 
     if (!records || !records.length) return;
 
+    // Performans için: Eğer çok fazla kayıt varsa (örn > 500), sadece ilk 500'ünü çiz veya uyarı ver.
+    // Ancak arama sonuçları genellikle az olacağı için bu sorun olmayacaktır.
+    const displayLimit = 1000;
+    const toDisplay = records.slice(0, displayLimit);
+
     const bounds = L.latLngBounds();
 
-    records.forEach(rec => {
+    toDisplay.forEach(rec => {
         if (!rec.coords || !rec.coords.length) return;
 
         const hasInfo = !!(rec.isletme || rec.urun);
@@ -346,19 +357,23 @@ function renderFromMasterData(records) {
             L.DomEvent.stopPropagation(e);
             showParselInfo(feature, owner);
         });
-        polygon.on('mouseover', () => { if (!isMeasuringDist && !isMeasuringArea) polygon.setStyle({ fillOpacity: 0.5 }); });
+        
+        polygon.on('mouseover', () => { 
+            if (!isMeasuringDist && !isMeasuringArea) polygon.setStyle({ fillOpacity: 0.5 }); 
+        });
         polygon.on('mouseout',  () => polygon.setStyle({ fillOpacity: 0.25 }));
-
-        polygon._ada    = rec.ada;
-        polygon._parsel = rec.parsel;
 
         bounds.extend(polygon.getBounds());
         mapPolygons.push(polygon);
-        gmlFeatures.push(feature);
-        if (owner) parselData.push(owner);
     });
 
-    if (mapPolygons.length > 0) map.fitBounds(bounds);
+    if (fitBounds && mapPolygons.length > 0) {
+        map.fitBounds(bounds);
+    }
+    
+    if (records.length > displayLimit) {
+        console.warn(`Performans için sadece ilk ${displayLimit} parsel çizildi.`);
+    }
 }
 
 async function buildMasterData(progressCb) {
@@ -572,6 +587,11 @@ function setupSearch() {
                 normalizeText(r.isletme).includes(normalizedQuery) || 
                 normalizeText(r.mahalle).includes(normalizedQuery)
             );
+        }
+
+        // Arama sonuçlarını haritaya çiz
+        if (results.length > 0) {
+            renderFromMasterData(results);
         }
 
         renderSearchResults(results);
