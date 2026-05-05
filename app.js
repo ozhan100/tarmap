@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.0.6";
+const APP_VERSION = "2.0.7";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
