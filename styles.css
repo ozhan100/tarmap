@@ -857,8 +857,8 @@ header.ui-hidden {
 
 .print-maps-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 5px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
     margin-top: 15px;
 }
 
@@ -870,12 +870,12 @@ header.ui-hidden {
 }
 
 .print-card-title {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: bold;
     text-align: center;
-    margin-bottom: 3px;
+    margin-bottom: 5px;
     border-bottom: 1px solid #ccc;
-    padding-bottom: 2px;
+    padding-bottom: 3px;
     font-family: Arial, sans-serif;
     white-space: nowrap;
     overflow: hidden;
@@ -883,7 +883,7 @@ header.ui-hidden {
 }
 
 .print-map-container {
-    height: 100px; /* Much smaller map for 4 columns */
+    height: 140px; /* Bigger map for 3 columns */
     width: 100%;
     background: transparent;
     border: 1px solid #ddd;

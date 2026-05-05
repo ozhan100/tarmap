@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.9.7";
+const APP_VERSION = "1.9.8";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -891,9 +891,38 @@ function normalizeText(text) {
     return str.replace(/\s+/g, ' ').trim();
 }
 
+const YEM_BITKILERI = [
+    "ARİ OTU(YEŞİL OT)",
+    "ÇAYIR OTU(MUHTELİF)",
+    "FİĞ(YEŞİL OT)",
+    "HAYVAN PANCARI(YEŞİL OT)",
+    "İTALYAN ÇİMİ(YEŞİL OT)",
+    "KORUNGA(YEŞİL OT)",
+    "MISIR(SİLAJLIK)",
+    "RYEGRASS(SÜT OTU) (YEŞİL OT)",
+    "SİLAJLIK MISIR(SİLAJLIK)",
+    "SORGUM SUDAN OTU MELEZİ(SİLAJLIK)",
+    "SORGUM SUDAN OTU MELEZİ(YEŞİL OT)",
+    "TRİTİKALE(SİLAJLIK)",
+    "TRİTİKALE(YEŞİL OT)",
+    "YEM BEZELYESİ(YEŞİL OT)",
+    "YONCA(Yeşil Ot)",
+    "YONCA(yonca)",
+    "YULAF(YEŞİL OT)"
+];
+
+function checkProductMatch(recordProduct, searchProduct) {
+    if (!searchProduct) return true;
+    const nRecord = normalizeText(recordProduct || "");
+    if (searchProduct === 'yem bitkisi' || searchProduct === 'yem bitkileri') {
+        return YEM_BITKILERI.some(yb => nRecord.includes(normalizeText(yb)));
+    }
+    return nRecord.includes(searchProduct);
+}
+
 function findParcelsByQuery(query) {
     if (!query) return [];
-    const normalizedQuery = normalizeText(query);
+    let normalizedQuery = normalizeText(query);
     let results = [];
 
     // Hızlı arama için masterRecords kullan (80 bin kayıtta anında sonuç verir)
@@ -929,24 +958,58 @@ function findParcelsByQuery(query) {
                 let match = true;
                 if (village && !normalizeText(r.mahalle).includes(village)) match = false;
                 if (name && !normalizeText(r.isletme).includes(name)) match = false;
-                if (product && !normalizeText(r.urun).includes(product)) match = false;
+                if (product && !checkProductMatch(r.urun, product)) match = false;
                 return match && (village || name || product);
             });
         }
 
         if (results.length === 0) {
+            // İsim ve ürün kelimeleri kullanılmadan yapılan serbest aramalar:
+            // Örn: "ahmet yonca" veya "ahmet yem bitkisi"
+            let searchName = normalizedQuery;
+            let searchProduct = null;
+
+            if (normalizedQuery.includes('yem bitkisi')) {
+                searchProduct = 'yem bitkisi';
+                searchName = normalizedQuery.replace('yem bitkisi', '').trim();
+            } else if (normalizedQuery.includes('yem bitkileri')) {
+                searchProduct = 'yem bitkileri';
+                searchName = normalizedQuery.replace('yem bitkileri', '').trim();
+            } else {
+                // Sona yazılan kelimenin yem bitkisi olup olmadığını kontrol edelim
+                const words = normalizedQuery.split(' ');
+                if (words.length > 1) {
+                    const lastWord = words[words.length - 1];
+                    const isProduct = YEM_BITKILERI.some(yb => normalizeText(yb).includes(lastWord));
+                    if (isProduct) {
+                        searchProduct = lastWord;
+                        searchName = words.slice(0, -1).join(' ').trim();
+                    }
+                }
+            }
+
             results = masterRecords.filter(r => {
                 const pTC = (r.tc || "").toString().trim();
-                if (pTC && pTC.includes(normalizedQuery)) return true;
-
                 const pName = normalizeText(r.isletme || "");
-                if (pName && pName.includes(normalizedQuery)) return true;
+                
+                let nameMatch = false;
+                if (pTC && pTC.includes(searchName)) nameMatch = true;
+                if (pName && pName.includes(searchName)) nameMatch = true;
+                if (!searchName) nameMatch = true; // Sadece "yem bitkisi" araması için
 
-                return false;
+                if (!nameMatch) return false;
+                
+                if (searchProduct) {
+                    return checkProductMatch(r.urun, searchProduct);
+                }
+                
+                return true;
             });
         }
         return results;
     }
+
+
 
     // Eski yavaş yöntem (Eğer masterRecords yoksa)
     if (normalizedQuery.includes('ada') && normalizedQuery.includes('parsel')) {
@@ -990,14 +1053,34 @@ function findParcelsByQuery(query) {
             if (name && !normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || "").includes(name)) match = false;
             if (product) {
                 const productVal = (owner["Ürün"] || owner["ÜRÜN"] || "").toString();
-                const cleanProductData = normalizeText(productVal.split('(')[0]);
-                if (!cleanProductData.includes(product)) match = false;
+                if (!checkProductMatch(productVal, product)) match = false;
             }
             return match;
         });
     }
 
     if (results.length === 0) {
+        let searchName = normalizedQuery;
+        let searchProduct = null;
+
+        if (normalizedQuery.includes('yem bitkisi')) {
+            searchProduct = 'yem bitkisi';
+            searchName = normalizedQuery.replace('yem bitkisi', '').trim();
+        } else if (normalizedQuery.includes('yem bitkileri')) {
+            searchProduct = 'yem bitkileri';
+            searchName = normalizedQuery.replace('yem bitkileri', '').trim();
+        } else {
+            const words = normalizedQuery.split(' ');
+            if (words.length > 1) {
+                const lastWord = words[words.length - 1];
+                const isProduct = YEM_BITKILERI.some(yb => normalizeText(yb).includes(lastWord));
+                if (isProduct) {
+                    searchProduct = lastWord;
+                    searchName = words.slice(0, -1).join(' ').trim();
+                }
+            }
+        }
+
         results = gmlFeatures.filter(f => {
             const owner = parselData.find(d => {
                 const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim();
@@ -1007,12 +1090,21 @@ function findParcelsByQuery(query) {
             if (!owner) return false;
             
             const pTC = (owner["TC"] || owner["TC Kimlik"] || owner["T.C. No"] || owner["TC / Vergi No"] || "").toString().trim();
-            if (pTC && pTC.includes(normalizedQuery)) return true;
-
             const pName = normalizeText(owner["İşletme"] || owner["Ad Soyad"] || owner["Sahibi"] || owner["İşletme Adı"] || "");
-            if (pName && pName.includes(normalizedQuery)) return true;
+            
+            let nameMatch = false;
+            if (pTC && pTC.includes(searchName)) nameMatch = true;
+            if (pName && pName.includes(searchName)) nameMatch = true;
+            if (!searchName) nameMatch = true;
 
-            return false;
+            if (!nameMatch) return false;
+
+            if (searchProduct) {
+                const productVal = (owner["Ürün"] || owner["ÜRÜN"] || "").toString();
+                return checkProductMatch(productVal, searchProduct);
+            }
+            
+            return true;
         });
     }
 
