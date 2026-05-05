@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.9.9";
+const APP_VERSION = "2.0.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -425,19 +425,35 @@ async function buildMasterData(progressCb) {
         if (nm) farmerByName.set(nm, f);
     });
 
-    // Parsel Map (Ada-Parsel anahtarı)
+    // Parsel Map (Mahalle-Ada-Parsel anahtarı)
     const parselMap = new Map();
+    const parselFallbackMap = new Map();
+
     parselData.forEach(p => {
+        const rawMahalle = p['Köy'] || p['KÖY'] || p['Mahalle'] || '';
+        const mahalle = getCleanMahalle(rawMahalle);
         const ada    = (p['Ada No'] || p['Ada'] || p['AdaNo'] || p['Ada No'] || '').toString().trim().replace(/^0+/, '') || '0';
         const parsel = (p['Parsel No'] || p['Parsel'] || p['ParselNo'] || p['Parsel No'] || '').toString().trim().replace(/^0+/, '') || '0';
-        parselMap.set(`${ada}-${parsel}`, p);
+        
+        parselMap.set(`${mahalle}-${ada}-${parsel}`, p);
+        
+        if (!parselFallbackMap.has(`${ada}-${parsel}`)) {
+            parselFallbackMap.set(`${ada}-${parsel}`, p);
+        } else {
+            parselFallbackMap.delete(`${ada}-${parsel}`);
+        }
     });
 
     // Birleştir
     const records = gmlFeatures.map(feat => {
         const fAda    = feat.ada.toString().replace(/^0+/, '');
         const fParsel = feat.parsel.toString().replace(/^0+/, '');
-        const p = parselMap.get(`${fAda}-${fParsel}`) || {};
+        const fMahalle = getCleanMahalle(feat.mahalle);
+        
+        let p = parselMap.get(`${fMahalle}-${fAda}-${fParsel}`);
+        if (!p) {
+            p = parselFallbackMap.get(`${fAda}-${fParsel}`) || {};
+        }
 
         const pTC   = (p['TC'] || p['TC / Vergi No'] || '').trim();
         const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
@@ -452,7 +468,7 @@ async function buildMasterData(progressCb) {
             isletme:    p['İşletme Adı'] || p['İşletme'] || '',
             tc:         pTC,
             urun:       p['Ürün'] || '',
-            alan:       p['Kullanılan  Alan(da)'] || p['Alan'] || '',
+            alan:       p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || '',
             tarim_sekli:p['Tarım Şekli'] || '',
             telefon:    phone
         };
@@ -697,24 +713,35 @@ function renderPolygons() {
 
     if (!gmlFeatures.length) return;
 
-    // Hız için parsel verilerini Map'e al (Key: Ada-Parsel)
+    // Hız için parsel verilerini Map'e al (Key: Mahalle-Ada-Parsel)
     const ownerMap = new Map();
+    const ownerFallbackMap = new Map();
+    
     parselData.forEach(d => {
-        // Ada ve Parsel numaralarını sayısal olarak normalize et (Baştaki sıfırları temizle)
+        const rawMahalle = d['Köy'] || d['KÖY'] || d['Mahalle'] || '';
+        const mahalle = getCleanMahalle(rawMahalle);
         const dAda = (d["Ada No"] || d["Ada"] || d["AdaNo"] || d["Ada\nNo"] || "").toString().trim().replace(/^0+/, '');
         const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim().replace(/^0+/, '');
-        ownerMap.set(`${dAda}-${dParsel}`, d);
+        
+        ownerMap.set(`${mahalle}-${dAda}-${dParsel}`, d);
+        if (!ownerFallbackMap.has(`${dAda}-${dParsel}`)) {
+            ownerFallbackMap.set(`${dAda}-${dParsel}`, d);
+        } else {
+            ownerFallbackMap.delete(`${dAda}-${dParsel}`);
+        }
     });
 
     const bounds = L.latLngBounds();
 
     gmlFeatures.forEach(feature => {
-        // GML'den gelen ada/parseli de normalize et
         const fAda = feature.ada.toString().replace(/^0+/, '');
         const fParsel = feature.parsel.toString().replace(/^0+/, '');
+        const fMahalle = getCleanMahalle(feature.mahalle);
         
-        const key = `${fAda}-${fParsel}`;
-        const owner = ownerMap.get(key);
+        let owner = ownerMap.get(`${fMahalle}-${fAda}-${fParsel}`);
+        if (!owner) {
+            owner = ownerFallbackMap.get(`${fAda}-${fParsel}`);
+        }
 
         const polygon = L.polygon(feature.coords, {
             color: owner ? "#2ecc71" : "#95a5a6",
@@ -822,7 +849,7 @@ window.showParselInfo = function (feature, owner) {
             </div>
             <div class="detail-item">
                 <div class="detail-label">Alan (da)</div>
-                <div class="detail-value">${owner["Alan"] || owner["Kullanılan  Alan(da)"] || owner["ParselAlanı"] || "-"}</div>
+                <div class="detail-value">${owner["Alan"] || owner["Kullanılan  Alan(da)"] || owner["Kullanılan Alan(da)"] || owner["Kullanılan Alan"] || owner["Tapu Alanı"] || owner["Alanı"] || owner["Ekili Alan"] || owner["ParselAlanı"] || "-"}</div>
             </div>
             <div class="detail-item">
                 <div class="detail-label">Tarım Şekli</div>
@@ -889,6 +916,12 @@ function normalizeText(text) {
     str = str.toLowerCase(); // Fallback for other characters
 
     return str.replace(/\s+/g, ' ').trim();
+}
+
+function getCleanMahalle(str) {
+    if (!str) return "";
+    let s = normalizeText(str);
+    return s.replace(/\b(mahallesi|mah|mah\.|köyü|koyu|köy)\b/g, '').trim();
 }
 
 const YEM_BITKILERI = [
