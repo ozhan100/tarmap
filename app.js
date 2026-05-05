@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.0.4";
+const APP_VERSION = "2.0.6";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -564,6 +564,7 @@ function normalizeText(text) {
     return str.replace(/\s+/g, ' ').trim();
 }
 
+
 function getCleanMahalle(str) {
     if (!str) return "";
     let s = normalizeText(str);
@@ -571,9 +572,14 @@ function getCleanMahalle(str) {
 }
 
 function setupSearch() {
-    const searchInput = document.getElementById('search-input');
+    const searchInput = document.getElementById('global-search');
     const searchBtn = document.getElementById('search-button');
     const resultsPanel = document.getElementById('search-results');
+
+    if (!searchInput || !searchBtn) {
+        console.warn('Arama elementleri bulunamadı. Arama özelliği devre dışı.');
+        return;
+    }
 
     const performSearch = () => {
         const query = searchInput.value.trim();
