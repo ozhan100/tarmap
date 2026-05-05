@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.1.0";
+const APP_VERSION = "2.1.1";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -881,10 +881,11 @@ window.generateReport = async () => {
             card.style.border = '1px solid #555';
             card.innerHTML = `
                 <img src="${canvas.toDataURL('image/jpeg', 0.8)}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
-                <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.85); padding: 4px; font-size: 11px; text-align: center; border-top: 1px solid #777; font-family: Arial, sans-serif; line-height: 1.3; box-sizing: border-box;">
-                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">${p.mahalle || '-'}</div>
-                    <div><strong>Ada:</strong> ${p.ada || '-'} &nbsp;|&nbsp; <strong>Parsel:</strong> ${p.parsel || '-'}</div>
-                    <div><strong>Ürün:</strong> ${p.urun || '-'}</div>
+                <div style="position: absolute; top: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.85); padding: 4px; font-size: 11px; text-align: center; border-bottom: 1px solid #777; font-family: Arial, sans-serif; font-weight: bold; box-sizing: border-box;">
+                    ${p.mahalle || '-'} &nbsp;|&nbsp; Ada: ${p.ada || '-'} &nbsp;|&nbsp; Parsel: ${p.parsel || '-'}
+                </div>
+                <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.85); padding: 4px; font-size: 11px; text-align: center; border-top: 1px solid #777; font-family: Arial, sans-serif; font-weight: bold; box-sizing: border-box;">
+                    Ürün: ${p.urun || '-'}
                 </div>
             `;
             if (grid) grid.appendChild(card);
