@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.1.3";
+const APP_VERSION = "2.1.4";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -33,6 +33,7 @@ let currentOwnerData = null;
 let masterRecords = [];
 let currentSearchResults = [];
 let currentSearchIndex = 0;
+let isSearchActive = false;
 
 let selectedFiles = {
     gml: null,
@@ -605,7 +606,13 @@ function setupSearch() {
 
     const performSearch = () => {
         const query = searchInput.value.trim();
-        if (!query) return;
+        if (!query) {
+            isSearchActive = false;
+            currentSearchResults = [];
+            renderFromMasterData(masterRecords);
+            infoPanel.classList.add('hidden');
+            return;
+        }
         
         let normalizedQuery = normalizeText(query);
         // 'yem bitkisi' aramalarını tek bir özel anahtar kelimeye dönüştür
@@ -647,6 +654,7 @@ function setupSearch() {
         });
 
         if (currentSearchResults.length > 0) {
+            isSearchActive = true;
             renderFromMasterData(currentSearchResults);
             currentSearchIndex = 0;
             showSearchResult(0);
@@ -872,7 +880,11 @@ window.generateReport = async () => {
 
     const tc = currentOwnerData['TC'];
     const ad = currentOwnerData['İşletme Adı'];
-    const ownerParcels = masterRecords.filter(r => 
+    
+    // Eğer aktif bir arama varsa parselleri arama havuzundan, yoksa genel havuzdan seç
+    const sourceRecords = isSearchActive ? currentSearchResults : masterRecords;
+
+    const ownerParcels = sourceRecords.filter(r => 
         (tc && r.tc === tc) || 
         (!tc && normalizeText(r.isletme) === normalizeText(ad))
     );
