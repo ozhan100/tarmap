@@ -607,14 +607,43 @@ function setupSearch() {
         const query = searchInput.value.trim();
         if (!query) return;
         
-        const normalizedQuery = normalizeText(query);
+        let normalizedQuery = normalizeText(query);
+        // 'yem bitkisi' aramalarını tek bir özel anahtar kelimeye dönüştür
+        normalizedQuery = normalizedQuery.replace(/yem bitkis[iİ]/g, 'yem_bitkisi_alias').replace(/yem bitkiler[iİ]/g, 'yem_bitkisi_alias');
+        
         const searchTerms = normalizedQuery.split(/\s+/);
+        const YEM_BITKISI_LISTESI = [
+            "ARİ OTU(YEŞİL OT)",
+            "ÇAYIR OTU(MUHTELİF)",
+            "FİĞ(YEŞİL OT)",
+            "HAYVAN PANCARI(YEŞİL OT)",
+            "İTALYAN ÇİMİ(YEŞİL OT)",
+            "KORUNGA(YEŞİL OT)",
+            "MISIR(SİLAJLIK)",
+            "RYEGRASS(SÜT OTU) (YEŞİL OT)",
+            "SİLAJLIK MISIR(SİLAJLIK)",
+            "SORGUM SUDAN OTU MELEZİ(SİLAJLIK)",
+            "SORGUM SUDAN OTU MELEZİ(YEŞİL OT)",
+            "TRİTİKALE(SİLAJLIK)",
+            "TRİTİKALE(YEŞİL OT)",
+            "YEM BEZELYESİ(YEŞİL OT)",
+            "YONCA(Yeşil Ot)",
+            "YONCA(yonca)",
+            "YULAF(YEŞİL OT)"
+        ].map(normalizeText);
 
         currentSearchResults = masterRecords.filter(r => {
             const rowText = normalizeText(
                 `${r.isletme} ${r.mahalle} ${r.urun} ${r.tc} ${r.ada} ${r.parsel} ${r.ada}/${r.parsel}`
             );
-            return searchTerms.every(term => rowText.includes(term));
+            
+            return searchTerms.every(term => {
+                if (term === 'yem_bitkisi_alias' || term === 'yem') {
+                    const urunNorm = normalizeText(r.urun);
+                    return YEM_BITKISI_LISTESI.some(yem => urunNorm.includes(yem)) || rowText.includes('yem');
+                }
+                return rowText.includes(term);
+            });
         });
 
         if (currentSearchResults.length > 0) {
