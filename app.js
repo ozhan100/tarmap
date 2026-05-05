@@ -865,14 +865,18 @@ window.generateReport = async () => {
             });
 
             const card = document.createElement('div');
-            card.className = 'print-map-card';
+            card.className = 'print-card';
+            card.style.position = 'relative';
+            card.style.height = '160px';
+            card.style.padding = '0';
+            card.style.overflow = 'hidden';
+            card.style.border = '1px solid #555';
             card.innerHTML = `
-                <img src="${canvas.toDataURL('image/jpeg', 0.8)}" class="print-map-img" style="width: 100%; height: 250px; object-fit: cover; border-bottom: 2px solid #2ecc71;" />
-                <div class="print-map-info" style="padding: 10px; font-size: 14px; text-align: left;">
-                    <div style="margin-bottom: 5px;"><strong>Köy/Mahalle:</strong> ${p.mahalle || '-'}</div>
-                    <div style="margin-bottom: 5px;"><strong>Ada:</strong> ${p.ada || '-'} &nbsp;&nbsp; <strong>Parsel:</strong> ${p.parsel || '-'}</div>
-                    <div style="margin-bottom: 5px;"><strong>Ürün:</strong> ${p.urun || '-'}</div>
-                    <div><strong>Alan:</strong> ${p.alan || '-'} da</div>
+                <img src="${canvas.toDataURL('image/jpeg', 0.8)}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+                <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.85); padding: 4px; font-size: 11px; text-align: center; border-top: 1px solid #777; font-family: Arial, sans-serif; line-height: 1.3; box-sizing: border-box;">
+                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">${p.mahalle || '-'}</div>
+                    <div><strong>Ada:</strong> ${p.ada || '-'} &nbsp;|&nbsp; <strong>Parsel:</strong> ${p.parsel || '-'}</div>
+                    <div><strong>Ürün:</strong> ${p.urun || '-'}</div>
                 </div>
             `;
             if (grid) grid.appendChild(card);
