@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.0.1";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -425,9 +425,9 @@ async function buildMasterData(progressCb) {
         if (nm) farmerByName.set(nm, f);
     });
 
-    // Parsel Map (Mahalle-Ada-Parsel anahtarı)
     const parselMap = new Map();
     const parselFallbackMap = new Map();
+    const parselDuplicates = new Set();
 
     parselData.forEach(p => {
         const rawMahalle = p['Köy'] || p['KÖY'] || p['Mahalle'] || '';
@@ -437,10 +437,12 @@ async function buildMasterData(progressCb) {
         
         parselMap.set(`${mahalle}-${ada}-${parsel}`, p);
         
-        if (!parselFallbackMap.has(`${ada}-${parsel}`)) {
-            parselFallbackMap.set(`${ada}-${parsel}`, p);
-        } else {
-            parselFallbackMap.delete(`${ada}-${parsel}`);
+        const fallbackKey = `${ada}-${parsel}`;
+        if (parselFallbackMap.has(fallbackKey)) {
+            parselFallbackMap.delete(fallbackKey);
+            parselDuplicates.add(fallbackKey);
+        } else if (!parselDuplicates.has(fallbackKey)) {
+            parselFallbackMap.set(fallbackKey, p);
         }
     });
 
@@ -672,6 +674,8 @@ function parseGML(xmlString) {
 
         const mahalle = layer.getElementsByTagNameNS("*", "Mahalle")[0]?.textContent?.trim() ||
             layer.getElementsByTagNameNS("*", "MahalleAdi")[0]?.textContent?.trim() ||
+            layer.getElementsByTagNameNS("*", "MahalleAd")[0]?.textContent?.trim() ||
+            layer.getElementsByTagNameNS("*", "MAHALLE_ADI")[0]?.textContent?.trim() ||
             layer.getElementsByTagNameNS("*", "MAHALLE_AD")[0]?.textContent?.trim() ||
             layer.getElementsByTagNameNS("*", "KoyAdi")[0]?.textContent?.trim() || "";
         
@@ -716,6 +720,7 @@ function renderPolygons() {
     // Hız için parsel verilerini Map'e al (Key: Mahalle-Ada-Parsel)
     const ownerMap = new Map();
     const ownerFallbackMap = new Map();
+    const ownerDuplicates = new Set();
     
     parselData.forEach(d => {
         const rawMahalle = d['Köy'] || d['KÖY'] || d['Mahalle'] || '';
@@ -724,10 +729,13 @@ function renderPolygons() {
         const dParsel = (d["Parsel No"] || d["Parsel"] || d["ParselNo"] || d["Parsel\nNo"] || "").toString().trim().replace(/^0+/, '');
         
         ownerMap.set(`${mahalle}-${dAda}-${dParsel}`, d);
-        if (!ownerFallbackMap.has(`${dAda}-${dParsel}`)) {
-            ownerFallbackMap.set(`${dAda}-${dParsel}`, d);
-        } else {
-            ownerFallbackMap.delete(`${dAda}-${dParsel}`);
+        
+        const fallbackKey = `${dAda}-${dParsel}`;
+        if (ownerFallbackMap.has(fallbackKey)) {
+            ownerFallbackMap.delete(fallbackKey);
+            ownerDuplicates.add(fallbackKey);
+        } else if (!ownerDuplicates.has(fallbackKey)) {
+            ownerFallbackMap.set(fallbackKey, d);
         }
     });
 
