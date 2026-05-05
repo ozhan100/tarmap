@@ -171,7 +171,8 @@ async function initLeafletMap() {
     map = L.map('map', {
         center: [40.15, 29.44],
         zoom: 15,
-        zoomControl: false
+        zoomControl: false,
+        preferCanvas: true
     });
 
     L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
@@ -307,14 +308,9 @@ function renderFromMasterData(records, fitBounds = true) {
 
     if (!records || !records.length) return;
 
-    // Performans için: Eğer çok fazla kayıt varsa (örn > 500), sadece ilk 500'ünü çiz veya uyarı ver.
-    // Ancak arama sonuçları genellikle az olacağı için bu sorun olmayacaktır.
-    const displayLimit = 1000;
-    const toDisplay = records.slice(0, displayLimit);
-
     const bounds = L.latLngBounds();
 
-    toDisplay.forEach(rec => {
+    records.forEach(rec => {
         if (!rec.coords || !rec.coords.length) return;
 
         const hasInfo = !!(rec.isletme || rec.urun);
@@ -356,10 +352,6 @@ function renderFromMasterData(records, fitBounds = true) {
 
     if (fitBounds && mapPolygons.length > 0) {
         map.fitBounds(bounds);
-    }
-    
-    if (records.length > displayLimit) {
-        console.warn(`Performans için sadece ilk ${displayLimit} parsel çizildi.`);
     }
 }
 
@@ -522,7 +514,7 @@ function parseGML(xmlString) {
                 if (!adaNo) adaNo = child.textContent?.trim() || "";
             } else if (['PARSELNO', 'PARSEL_NO', 'PARSEL', 'PAR'].includes(tagName)) {
                 if (!parselNo) parselNo = child.textContent?.trim() || "";
-            } else if (['MAHALLE', 'MAHALLEADI', 'MAHALLE_AD', 'MAHALLE_ADI', 'KOYADI', 'KOY', 'KOY_ADI'].includes(tagName)) {
+            } else if (['MAHALLE', 'MAHALLEADI', 'MAHALLE_AD', 'MAHALLE_ADI', 'KOYADI', 'KOY', 'KOY_ADI', 'MAHALLEAD'].includes(tagName)) {
                 if (!mahalle) mahalle = child.textContent?.trim() || "";
             } else if (['GEOM', 'GEOMETRY', 'GEOMETRI', 'THE_GEOM'].includes(tagName)) {
                 geom = child;
@@ -533,18 +525,41 @@ function parseGML(xmlString) {
 
         let coordinates = [];
         const coordNodes = geom.getElementsByTagNameNS("*", "coordinates");
+        const posNodes = geom.getElementsByTagNameNS("*", "posList");
 
+        // <coordinates> formatı (lon,lat lon,lat)
         for (let node of coordNodes) {
             const coordString = node.textContent;
             if (coordString) {
                 const pairs = coordString.trim().split(/\s+/);
                 const ring = pairs.map(p => {
                     const parts = p.split(",");
-                    return [parseFloat(parts[1]), parseFloat(parts[0])];
-                });
-                coordinates.push(ring);
+                    if (parts.length >= 2) {
+                        return [parseFloat(parts[1]), parseFloat(parts[0])]; // [lat, lng]
+                    }
+                    return null;
+                }).filter(Boolean);
+                if (ring.length > 0) coordinates.push(ring);
             }
         }
+
+        // <posList> formatı (lon lat lon lat veya lat lon lat lon)
+        // Genelde GML'de x y şeklindedir (lon lat)
+        for (let node of posNodes) {
+            const coordString = node.textContent;
+            if (coordString) {
+                const values = coordString.trim().split(/\s+/).map(parseFloat);
+                const ring = [];
+                for (let j = 0; j < values.length; j += 2) {
+                    if (j + 1 < values.length) {
+                        ring.push([values[j + 1], values[j]]); // [lat, lng] varsayımı (y, x)
+                    }
+                }
+                if (ring.length > 0) coordinates.push(ring);
+            }
+        }
+
+        if (coordinates.length === 0) continue;
 
         gmlFeatures.push({
             ada: adaNo,
