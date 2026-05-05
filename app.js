@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.0.7";
+const APP_VERSION = "2.0.8";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -831,6 +831,10 @@ window.generateReport = async () => {
     document.getElementById('print-tc').textContent = `: ${tc || '-'}`;
     document.getElementById('print-isim').textContent = `: ${ad || '-'}`;
     
+    // Yılı otomatik güncelle
+    const yearEl = document.getElementById('print-year');
+    if (yearEl) yearEl.textContent = new Date().getFullYear();
+    
     // Mahalleleri topla (virgülle ayır)
     const mahalleler = [...new Set(ownerParcels.map(p => p.mahalle))].join(', ');
     document.getElementById('print-mahalle').textContent = `: ${mahalleler || '-'}`;
@@ -841,11 +845,6 @@ window.generateReport = async () => {
     const appMain = document.getElementById('app');
     const printContainer = document.getElementById('print-container');
     
-    if (appMain && printContainer) {
-        appMain.classList.add('hidden');
-        printContainer.classList.remove('hidden');
-    }
-
     // Save current map state
     const currentCenter = map.getCenter();
     const currentZoom = map.getZoom();
@@ -854,7 +853,7 @@ window.generateReport = async () => {
         const bounds = L.polygon(p.coords).getBounds();
         map.fitBounds(bounds, { animate: false });
         
-        // Render wait
+        // Render wait - haritanın yüklenmesini bekle
         await new Promise(r => setTimeout(r, 600));
 
         try {
@@ -883,6 +882,12 @@ window.generateReport = async () => {
         } catch (err) {
             console.error("Harita render hatası:", err);
         }
+    }
+
+    // Ekranı rapor görünümüne al
+    if (appMain && printContainer) {
+        appMain.classList.add('hidden');
+        printContainer.classList.remove('hidden');
     }
 
     // Restore map state
