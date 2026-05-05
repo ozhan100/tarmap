@@ -181,10 +181,12 @@ async function initLeafletMap() {
 
     measureLayer = L.layerGroup().addTo(map);
 
-    await loadData();
+    // UI kurulumlarını hemen yap (Veri yüklenmesini bekleme)
     setupTools();
     setupSearch();
     setupSettings();
+    
+    await loadData();
     startLocationTracking();
     loadingOverlay.classList.add('hidden');
 }
@@ -612,6 +614,34 @@ function setupSearch() {
 
     searchBtn.onclick = performSearch;
     searchInput.onkeypress = (e) => { if (e.key === 'Enter') performSearch(); };
+
+    // Arama Paneli Kapat/Aç
+    const searchContainer = document.getElementById('search-container');
+    const showSearchBtn = document.getElementById('show-search');
+    const toggleSearchBtn = document.getElementById('toggle-search-btn');
+
+    if (showSearchBtn && searchContainer && toggleSearchBtn) {
+        showSearchBtn.onclick = () => {
+            searchContainer.classList.remove('ui-hidden');
+            showSearchBtn.classList.add('hidden');
+        };
+        toggleSearchBtn.onclick = () => {
+            searchContainer.classList.add('ui-hidden');
+            showSearchBtn.classList.remove('hidden');
+        };
+    }
+
+    // Rapor Butonu
+    const printBtn = document.getElementById('print-report-btn');
+    if (printBtn) {
+        printBtn.onclick = () => {
+            if (activeFeature && currentOwnerData) {
+                generateReport();
+            } else {
+                alert('Lütfen rapor almak için haritadan bir parsel seçin.');
+            }
+        };
+    }
 }
 
 function renderSearchResults(results) {
@@ -687,6 +717,23 @@ function setupTools() {
         sessionStorage.removeItem('isLoggedIn');
         location.reload();
     };
+
+    // --- UI Panel Toggles (Header) ---
+    const header = document.querySelector('header');
+    const showHeaderBtn = document.getElementById('show-header');
+    const toggleHeaderBtn = document.getElementById('toggle-header');
+
+    if (showHeaderBtn && header && toggleHeaderBtn) {
+        showHeaderBtn.onclick = () => {
+            header.classList.remove('ui-hidden');
+            showHeaderBtn.classList.add('hidden');
+        };
+        toggleHeaderBtn.onclick = () => {
+            header.classList.add('ui-hidden');
+            showHeaderBtn.classList.remove('hidden');
+        };
+    }
+
     document.getElementById('locate-me').onclick = () => {
         if (userMarker) map.setView(userMarker.getLatLng(), 18);
         else startLocationTracking(true);
