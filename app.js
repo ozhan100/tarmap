@@ -401,10 +401,12 @@ async function buildMasterData(progressCb) {
 
     const parselMap = new Map();
     parselData.forEach(p => {
-        const rawMahalle = p['Köy'] || p['KÖY'] || p['Mahalle'] || '';
+        const rawMahalle = p['Köy'] || p['KÖY'] || p['Mahalle'] || p['MAHALLE'] || 
+                           p['Mahalle Adı'] || p['Köyü'] || p['Köy/Mahalle'] || 
+                           p['KÖY/MAHALLE'] || p['KÖY/MAHALLE ADI'] || p['İlçe/Köy/Mahalle'] || '';
         const mahalle = getCleanMahalle(rawMahalle);
-        const ada    = (p['Ada\nNo'] || p['Ada No'] || p['Ada'] || p['AdaNo'] || '').toString().trim().replace(/^0+/, '') || '0';
-        const parsel = (p['Parsel\nNo'] || p['Parsel No'] || p['Parsel'] || p['ParselNo'] || '').toString().trim().replace(/^0+/, '') || '0';
+        const ada    = (p['Ada\nNo'] || p['Ada No'] || p['Ada'] || p['AdaNo'] || p['Ada_No'] || '').toString().trim().replace(/^0+/, '') || '0';
+        const parsel = (p['Parsel\nNo'] || p['Parsel No'] || p['Parsel'] || p['ParselNo'] || p['Parsel_No'] || '').toString().trim().replace(/^0+/, '') || '0';
         
         const key = `${mahalle}-${ada}-${parsel}`;
         if (!parselMap.has(key)) parselMap.set(key, []);
@@ -445,10 +447,10 @@ async function buildMasterData(progressCb) {
                 parsel:     feat.parsel,
                 mahalle:    feat.mahalle,
                 coords:     feat.coords,
-                isletme:    p['İşletme Adı'] || p['İşletme'] || '',
+                isletme:    p['İşletme Adı'] || p['İşletme'] || p['ADI SOYADI'] || p['AD SOYAD'] || '',
                 tc:         pTC,
-                urun:       p['Ürün'] || '',
-                alan:       p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || '',
+                urun:       p['Ürün'] || p['ÜRÜN'] || '',
+                alan:       p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
                 tarim_sekli:p['Tarım Şekli'] || '',
                 ekim_tarihi:p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
                 telefon:    phone
@@ -507,26 +509,25 @@ function parseGML(xmlString) {
         const layer = member.getElementsByTagNameNS("*", "Layer1")[0] || member.firstElementChild;
         if (!layer) continue;
 
-        const adaNo = (layer.getElementsByTagNameNS("*", "AdaNo")[0] || 
-                      layer.getElementsByTagNameNS("*", "ADA_NO")[0] || 
-                      layer.getElementsByTagNameNS("*", "ADA")[0] || 
-                      layer.getElementsByTagNameNS("*", "ADANO")[0])?.textContent?.trim();
+        let adaNo = "";
+        let parselNo = "";
+        let mahalle = "";
+        let geom = null;
 
-        const parselNo = (layer.getElementsByTagNameNS("*", "ParselNo")[0] || 
-                         layer.getElementsByTagNameNS("*", "PARSEL_NO")[0] || 
-                         layer.getElementsByTagNameNS("*", "PARSEL")[0] || 
-                         layer.getElementsByTagNameNS("*", "PARSELNO")[0])?.textContent?.trim();
+        for (let i = 0; i < layer.children.length; i++) {
+            const child = layer.children[i];
+            const tagName = child.localName.toUpperCase(); // namespace'siz büyük harf
 
-        const mahalle = layer.getElementsByTagNameNS("*", "Mahalle")[0]?.textContent?.trim() ||
-            layer.getElementsByTagNameNS("*", "MahalleAdi")[0]?.textContent?.trim() ||
-            layer.getElementsByTagNameNS("*", "MahalleAd")[0]?.textContent?.trim() ||
-            layer.getElementsByTagNameNS("*", "MAHALLE_ADI")[0]?.textContent?.trim() ||
-            layer.getElementsByTagNameNS("*", "MAHALLE_AD")[0]?.textContent?.trim() ||
-            layer.getElementsByTagNameNS("*", "KoyAdi")[0]?.textContent?.trim() || "";
-        
-        const geom = layer.getElementsByTagNameNS("*", "Geom")[0] || 
-                     layer.getElementsByTagNameNS("*", "geometry")[0] ||
-                     layer.getElementsByTagNameNS("*", "GEOMETRI")[0];
+            if (['ADANO', 'ADA_NO', 'ADA', 'AD'].includes(tagName)) {
+                if (!adaNo) adaNo = child.textContent?.trim() || "";
+            } else if (['PARSELNO', 'PARSEL_NO', 'PARSEL', 'PAR'].includes(tagName)) {
+                if (!parselNo) parselNo = child.textContent?.trim() || "";
+            } else if (['MAHALLE', 'MAHALLEADI', 'MAHALLE_AD', 'MAHALLE_ADI', 'KOYADI', 'KOY', 'KOY_ADI'].includes(tagName)) {
+                if (!mahalle) mahalle = child.textContent?.trim() || "";
+            } else if (['GEOM', 'GEOMETRY', 'GEOMETRI', 'THE_GEOM'].includes(tagName)) {
+                geom = child;
+            }
+        }
 
         if (!adaNo || !parselNo || !geom) continue;
 
@@ -798,6 +799,84 @@ function clearMeasurements() {
     measureText.innerText = "";
 }
 
-window.generateReport = () => {
-    window.print();
+window.generateReport = async () => {
+    if (!currentOwnerData) {
+        alert('Lütfen önce bir parsel seçin.');
+        return;
+    }
+    showLoading('Rapor Hazırlanıyor...');
+
+    const tc = currentOwnerData['TC'];
+    const ad = currentOwnerData['İşletme Adı'];
+    const ownerParcels = masterRecords.filter(r => 
+        (tc && r.tc === tc) || 
+        (!tc && normalizeText(r.isletme) === normalizeText(ad))
+    );
+
+    document.getElementById('print-tc').textContent = `: ${tc || '-'}`;
+    document.getElementById('print-isim').textContent = `: ${ad || '-'}`;
+    
+    // Mahalleleri topla (virgülle ayır)
+    const mahalleler = [...new Set(ownerParcels.map(p => p.mahalle))].join(', ');
+    document.getElementById('print-mahalle').textContent = `: ${mahalleler || '-'}`;
+
+    const grid = document.getElementById('print-maps-grid');
+    if (grid) grid.innerHTML = '';
+
+    const appMain = document.getElementById('app');
+    const printContainer = document.getElementById('print-container');
+    
+    if (appMain && printContainer) {
+        appMain.classList.add('hidden');
+        printContainer.classList.remove('hidden');
+    }
+
+    // Save current map state
+    const currentCenter = map.getCenter();
+    const currentZoom = map.getZoom();
+
+    for (const p of ownerParcels) {
+        const bounds = L.polygon(p.coords).getBounds();
+        map.fitBounds(bounds, { animate: false });
+        
+        // Render wait
+        await new Promise(r => setTimeout(r, 600));
+
+        try {
+            const canvas = await html2canvas(document.getElementById('map'), {
+                useCORS: true,
+                logging: false,
+                ignoreElements: (el) => el.classList.contains('leaflet-control-container')
+            });
+
+            const card = document.createElement('div');
+            card.className = 'print-map-card';
+            card.innerHTML = `
+                <img src="${canvas.toDataURL('image/jpeg', 0.8)}" class="print-map-img" style="width: 100%; height: 250px; object-fit: cover; border-bottom: 2px solid #2ecc71;" />
+                <div class="print-map-info" style="padding: 10px; font-size: 14px; text-align: left;">
+                    <div style="margin-bottom: 5px;"><strong>Köy/Mahalle:</strong> ${p.mahalle || '-'}</div>
+                    <div style="margin-bottom: 5px;"><strong>Ada:</strong> ${p.ada || '-'} &nbsp;&nbsp; <strong>Parsel:</strong> ${p.parsel || '-'}</div>
+                    <div style="margin-bottom: 5px;"><strong>Ürün:</strong> ${p.urun || '-'}</div>
+                    <div><strong>Alan:</strong> ${p.alan || '-'} da</div>
+                </div>
+            `;
+            if (grid) grid.appendChild(card);
+        } catch (err) {
+            console.error("Harita render hatası:", err);
+        }
+    }
+
+    // Restore map state
+    map.setView(currentCenter, currentZoom, { animate: false });
+    
+    hideLoading();
+    
+    setTimeout(() => {
+        window.print();
+    }, 500);
 };
+
+document.getElementById('close-print-btn')?.addEventListener('click', () => {
+    document.getElementById('print-container').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+});
