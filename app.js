@@ -687,37 +687,61 @@ function showParselInfo(feature, owner, fromSearch = false) {
     currentOwnerData = owner;
     infoPanel.classList.remove('hidden');
     
-    let navHtml = '';
-    if (fromSearch && currentSearchResults.length > 1) {
-        navHtml = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px;">
-                <button onclick="showSearchResult(currentSearchIndex - 1)" style="padding: 6px 12px; font-weight:bold; cursor:pointer; border-radius:6px; background:#2ecc71; color:white; border:none;">&laquo; Önceki</button>
-                <span style="font-size:0.9rem; font-weight:bold; color:#fff;">${currentSearchIndex + 1} / ${currentSearchResults.length}</span>
-                <button onclick="showSearchResult(currentSearchIndex + 1)" style="padding: 6px 12px; font-weight:bold; cursor:pointer; border-radius:6px; background:#2ecc71; color:white; border:none;">Sonraki &raquo;</button>
-            </div>
-        `;
-    }
-
-    let html = navHtml + `
-        <div class="mb-4">
-            <h3 class="text-lg font-bold text-green-700" style="color: #2ecc71;">${feature.mahalle} ${feature.ada}/${feature.parsel}</h3>
+    let html = `
+        <div style="margin-bottom: 15px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+            <h3 style="font-size: 1.3rem; font-weight: 700; color: #2ecc71; letter-spacing: 0.5px; margin: 0;">${feature.mahalle}</h3>
+            <div style="font-size: 0.95rem; color: #cbd5e1; font-weight: 500; margin-top: 4px;">Ada: <span style="color: #fff;">${feature.ada}</span> &nbsp;&bull;&nbsp; Parsel: <span style="color: #fff;">${feature.parsel}</span></div>
         </div>
     `;
 
     if (owner) {
         html += `
-            <div class="space-y-2">
-                <p><strong>İşletme:</strong> ${owner['İşletme Adı']}</p>
-                <p><strong>TC:</strong> ${owner['TC']}</p>
-                <p><strong>Ürün:</strong> ${owner['Ürün']}</p>
-                <p><strong>Alan:</strong> ${owner['Alan']} da</p>
-                <p><strong>Tarım Şekli:</strong> ${owner['Tarım Şekli']}</p>
-                ${owner['Ekim Tarihi'] ? `<p><strong>Ekim Tarihi:</strong> ${owner['Ekim Tarihi']}</p>` : ''}
-                ${owner._phone ? `<p><strong>Telefon:</strong> <a href="tel:${owner._phone}" class="text-blue-600 underline">${owner._phone}</a></p>` : ''}
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; flex-direction: column; text-align: center; margin-bottom: 5px;">
+                    <span style="font-size: 0.75rem; color: #94A3B8; text-transform: uppercase; letter-spacing: 1px;">İşletme Sahibi</span>
+                    <span style="font-size: 1.15rem; color: #fff; font-weight: 600; line-height: 1.2;">${owner['İşletme Adı']}</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <span style="color: #94A3B8; font-size: 0.9rem;">T.C. Kimlik</span>
+                    <span style="color: #fff; font-weight: 500;">${owner['TC'] || '-'}</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <span style="color: #94A3B8; font-size: 0.9rem;">Ürün / Alan</span>
+                    <span style="color: #2ecc71; font-weight: bold; font-size: 0.95rem;">${owner['Ürün']} &bull; ${owner['Alan']} da</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <span style="color: #94A3B8; font-size: 0.9rem;">Tarım Şekli</span>
+                    <span style="color: #fff; font-weight: 500;">${owner['Tarım Şekli'] || '-'}</span>
+                </div>
+                
+                ${owner['Ekim Tarihi'] ? `
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <span style="color: #94A3B8; font-size: 0.9rem;">Ekim Tarihi</span>
+                    <span style="color: #fff; font-weight: 500;">${owner['Ekim Tarihi']}</span>
+                </div>` : ''}
+                
+                ${owner._phone ? `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 5px;">
+                    <span style="color: #94A3B8; font-size: 0.9rem;">Telefon</span>
+                    <a href="tel:${owner._phone}" style="background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; padding: 6px 14px; border-radius: 20px; text-decoration: none; font-size: 0.85rem; font-weight: bold; box-shadow: 0 4px 10px rgba(34,197,94,0.3); transition: transform 0.2s;">📞 ${owner._phone}</a>
+                </div>` : ''}
             </div>
         `;
     } else {
-        html += `<p class="text-gray-500 italic">Bu parsel için üretim kaydı bulunamadı.</p>`;
+        html += `<div style="text-align: center; padding: 20px 0; color: #94A3B8; font-style: italic;">Bu parsel için üretim kaydı bulunamadı.</div>`;
+    }
+
+    if (fromSearch && currentSearchResults.length > 1) {
+        html += `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px; background: rgba(0,0,0,0.2); padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                <button onclick="showSearchResult(currentSearchIndex - 1)" style="padding: 8px 12px; font-weight:bold; cursor:pointer; border-radius:8px; background:linear-gradient(135deg, #3b82f6, #2563eb); color:white; border:none; box-shadow: 0 2px 8px rgba(37,99,235,0.3); font-size: 0.85rem;">&laquo; Önceki</button>
+                <span style="font-size:0.9rem; font-weight:bold; color:#fff; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px;">${currentSearchIndex + 1} / ${currentSearchResults.length}</span>
+                <button onclick="showSearchResult(currentSearchIndex + 1)" style="padding: 8px 12px; font-weight:bold; cursor:pointer; border-radius:8px; background:linear-gradient(135deg, #3b82f6, #2563eb); color:white; border:none; box-shadow: 0 2px 8px rgba(37,99,235,0.3); font-size: 0.85rem;">Sonraki &raquo;</button>
+            </div>
+        `;
     }
 
     parselDetails.innerHTML = html;
