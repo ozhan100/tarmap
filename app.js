@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.0.1";
+const APP_VERSION = "2.0.2";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -986,7 +986,7 @@ function findParcelsByQuery(query) {
                     }
                 }
             }
-        } else if (normalizedQuery.includes('isim') || normalizedQuery.includes('ürün')) {
+        } else if (normalizedQuery.includes('isim') || normalizedQuery.includes('ürün') || normalizedQuery.includes('köy') || normalizedQuery.includes('mahalle')) {
             const villageMatch = normalizedQuery.match(/köy\s+(.*?)(?=\s+isim|\s+ürün|$)/);
             const nameMatch = normalizedQuery.match(/isim\s+(.*?)(?=\s+ürün|$)/);
             const productMatch = normalizedQuery.match(/ürün\s+(.*)/);
@@ -1036,6 +1036,7 @@ function findParcelsByQuery(query) {
                 let nameMatch = false;
                 if (pTC && pTC.includes(searchName)) nameMatch = true;
                 if (pName && pName.includes(searchName)) nameMatch = true;
+                if (normalizeText(r.mahalle || "").includes(searchName)) nameMatch = true;
                 if (!searchName) nameMatch = true; // Sadece "yem bitkisi" araması için
 
                 if (!nameMatch) return false;
@@ -1072,7 +1073,7 @@ function findParcelsByQuery(query) {
             }
         }
     }
-    else if (normalizedQuery.includes('isim') || normalizedQuery.includes('ürün')) {
+    else if (normalizedQuery.includes('isim') || normalizedQuery.includes('ürün') || normalizedQuery.includes('köy') || normalizedQuery.includes('mahalle')) {
         const villageMatch = normalizedQuery.match(/köy\s+(.*?)(?=\s+isim|\s+ürün|$)/);
         const nameMatch = normalizedQuery.match(/isim\s+(.*?)(?=\s+ürün|$)/);
         const productMatch = normalizedQuery.match(/ürün\s+(.*)/);
@@ -1136,6 +1137,7 @@ function findParcelsByQuery(query) {
             let nameMatch = false;
             if (pTC && pTC.includes(searchName)) nameMatch = true;
             if (pName && pName.includes(searchName)) nameMatch = true;
+            if (normalizeText(owner["Köy"] || owner["KÖY"] || owner["Mahalle"] || "").includes(searchName)) nameMatch = true;
             if (!searchName) nameMatch = true;
 
             if (!nameMatch) return false;
@@ -1170,7 +1172,7 @@ function executeSearch(query) {
                         return dAda === f.ada && dParsel === f.parsel;
                     });
                     foundPoly.setStyle({ color: isOwner ? "#2ecc71" : "#95a5a6", weight: 2, fillOpacity: 0.25 });
-                }, 5000);
+                }, 15000);
             }
         });
         map.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
