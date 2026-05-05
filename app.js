@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "1.9.8";
+const APP_VERSION = "1.9.9";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -447,7 +447,7 @@ async function buildMasterData(progressCb) {
         return {
             ada:        feat.ada,
             parsel:     feat.parsel,
-            mahalle:    feat.mahalle || p['Köy'] || p['KÖY'] || p['Mahalle'] || '',
+            mahalle:    p['Köy'] || p['KÖY'] || p['Mahalle'] || '',
             coords:     feat.coords,
             isletme:    p['İşletme Adı'] || p['İşletme'] || '',
             tc:         pTC,
