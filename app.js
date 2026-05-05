@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.1.1";
+const APP_VERSION = "2.1.2";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -31,6 +31,8 @@ let measureLayer;
 let activeFeature = null;
 let currentOwnerData = null;
 let masterRecords = [];
+let currentSearchResults = [];
+let currentSearchIndex = 0;
 
 let selectedFiles = {
     gml: null,
@@ -606,28 +608,22 @@ function setupSearch() {
         if (!query) return;
         
         const normalizedQuery = normalizeText(query);
-        let results = [];
+        const searchTerms = normalizedQuery.split(/\s+/);
 
-        // Ada/Parsel araması: "128/118" veya "128 118"
-        const adaParselMatch = query.match(/(\d+)[/\s](\d+)/);
-        if (adaParselMatch) {
-            const ada = adaParselMatch[1];
-            const parsel = adaParselMatch[2];
-            results = masterRecords.filter(r => r.ada === ada && r.parsel === parsel);
-        } else {
-            // İsim veya Mahalle araması
-            results = masterRecords.filter(r => 
-                normalizeText(r.isletme).includes(normalizedQuery) || 
-                normalizeText(r.mahalle).includes(normalizedQuery)
+        currentSearchResults = masterRecords.filter(r => {
+            const rowText = normalizeText(
+                `${r.isletme} ${r.mahalle} ${r.urun} ${r.tc} ${r.ada} ${r.parsel} ${r.ada}/${r.parsel}`
             );
-        }
+            return searchTerms.every(term => rowText.includes(term));
+        });
 
-        // Arama sonuçlarını haritaya çiz
-        if (results.length > 0) {
-            renderFromMasterData(results);
+        if (currentSearchResults.length > 0) {
+            renderFromMasterData(currentSearchResults);
+            currentSearchIndex = 0;
+            showSearchResult(0);
+        } else {
+            alert('Arama kriterinize uygun sonuç bulunamadı.');
         }
-
-        renderSearchResults(results);
     };
 
     searchBtn.onclick = performSearch;
@@ -662,50 +658,49 @@ function setupSearch() {
     }
 }
 
-function renderSearchResults(results) {
-    const resultsPanel = document.getElementById('search-results');
-    const resultsList = document.getElementById('results-list');
-    resultsList.innerHTML = '';
+window.showSearchResult = function(index) {
+    if (!currentSearchResults || currentSearchResults.length === 0) return;
+    
+    if (index < 0) index = currentSearchResults.length - 1;
+    if (index >= currentSearchResults.length) index = 0;
+    
+    currentSearchIndex = index;
+    const r = currentSearchResults[index];
+    
+    const bounds = L.polygon(r.coords).getBounds();
+    map.fitBounds(bounds, { animate: false, padding: [20, 20] });
+    
+    showParselInfo(r, r.isletme ? {
+        'İşletme Adı': r.isletme,
+        'TC': r.tc,
+        'Köy': r.mahalle,
+        'Ürün': r.urun,
+        'Alan': r.alan,
+        'Tarım Şekli': r.tarim_sekli,
+        'Ekim Tarihi': r.ekim_tarihi,
+        _phone: r.telefon
+    } : null, true);
+};
 
-    if (results.length === 0) {
-        resultsList.innerHTML = '<div class="p-4 text-gray-500">Sonuç bulunamadı.</div>';
-    } else {
-        results.forEach(r => {
-            const div = document.createElement('div');
-            div.className = 'p-3 border-b hover:bg-gray-50 cursor-pointer';
-            div.innerHTML = `
-                <div class="font-bold">${r.mahalle} ${r.ada}/${r.parsel}</div>
-                <div class="text-sm text-gray-600">${r.isletme || 'Bilgi Yok'}</div>
-            `;
-            div.onclick = () => {
-                const bounds = L.polygon(r.coords).getBounds();
-                map.fitBounds(bounds);
-                showParselInfo(r, r.isletme ? {
-                    'İşletme Adı': r.isletme,
-                    'TC': r.tc,
-                    'Köy': r.mahalle,
-                    'Ürün': r.urun,
-                    'Alan': r.alan,
-                    'Tarım Şekli': r.tarim_sekli,
-                    'Ekim Tarihi': r.ekim_tarihi,
-                    _phone: r.telefon
-                } : null);
-                resultsPanel.classList.add('hidden');
-            };
-            resultsList.appendChild(div);
-        });
-    }
-    resultsPanel.classList.remove('hidden');
-}
-
-function showParselInfo(feature, owner) {
+function showParselInfo(feature, owner, fromSearch = false) {
     activeFeature = feature;
     currentOwnerData = owner;
     infoPanel.classList.remove('hidden');
     
-    let html = `
+    let navHtml = '';
+    if (fromSearch && currentSearchResults.length > 1) {
+        navHtml = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px;">
+                <button onclick="showSearchResult(currentSearchIndex - 1)" style="padding: 6px 12px; font-weight:bold; cursor:pointer; border-radius:6px; background:#2ecc71; color:white; border:none;">&laquo; Önceki</button>
+                <span style="font-size:0.9rem; font-weight:bold; color:#fff;">${currentSearchIndex + 1} / ${currentSearchResults.length}</span>
+                <button onclick="showSearchResult(currentSearchIndex + 1)" style="padding: 6px 12px; font-weight:bold; cursor:pointer; border-radius:6px; background:#2ecc71; color:white; border:none;">Sonraki &raquo;</button>
+            </div>
+        `;
+    }
+
+    let html = navHtml + `
         <div class="mb-4">
-            <h3 class="text-lg font-bold text-green-700">${feature.mahalle} ${feature.ada}/${feature.parsel}</h3>
+            <h3 class="text-lg font-bold text-green-700" style="color: #2ecc71;">${feature.mahalle} ${feature.ada}/${feature.parsel}</h3>
         </div>
     `;
 
@@ -882,10 +877,7 @@ window.generateReport = async () => {
             card.innerHTML = `
                 <img src="${canvas.toDataURL('image/jpeg', 0.8)}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
                 <div style="position: absolute; top: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.85); padding: 4px; font-size: 11px; text-align: center; border-bottom: 1px solid #777; font-family: Arial, sans-serif; font-weight: bold; box-sizing: border-box;">
-                    ${p.mahalle || '-'} &nbsp;|&nbsp; Ada: ${p.ada || '-'} &nbsp;|&nbsp; Parsel: ${p.parsel || '-'}
-                </div>
-                <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.85); padding: 4px; font-size: 11px; text-align: center; border-top: 1px solid #777; font-family: Arial, sans-serif; font-weight: bold; box-sizing: border-box;">
-                    Ürün: ${p.urun || '-'}
+                    ${p.mahalle || '-'} &nbsp;|&nbsp; ${p.ada || '-'}/${p.parsel || '-'} &nbsp;|&nbsp; ${p.urun || '-'}
                 </div>
             `;
             if (grid) grid.appendChild(card);
