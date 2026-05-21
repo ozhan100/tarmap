@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.1.9";
+const APP_VERSION = "2.2.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -119,7 +119,7 @@ async function handleLogin() {
                     sessionStorage.setItem('tgToken', data.telegram_token);
                     sessionStorage.setItem('tgChat', data.telegram_chat_id);
                 }
-                sendNotification(`${currentUser} sisteme giriş yaptı! (TarMap)`);
+                await sendNotification(`${currentUser} sisteme giriş yaptı!\nUygulama: TarMap v${APP_VERSION}`);
                 showApp();
             } else {
                 loginError.innerText = "Bu hesabın TarMap uygulamasına giriş yetkisi yoktur!";
