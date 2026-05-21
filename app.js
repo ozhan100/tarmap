@@ -674,9 +674,9 @@ function setupSearch() {
             );
 
             return searchTerms.every(term => {
-                if (term === 'yem_bitkisi_alias' || term === 'yem') {
+                if (term === 'yem_bitkisi_alias') {
                     const urunNorm = normalizeText(r.urun);
-                    return YEM_BITKISI_LISTESI.some(yem => urunNorm.includes(yem)) || rowText.includes('yem');
+                    return YEM_BITKISI_LISTESI.some(yem => urunNorm.includes(yem));
                 }
                 return rowText.includes(term);
             });
