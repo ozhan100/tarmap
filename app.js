@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.1.8";
+const APP_VERSION = "2.1.9";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -410,8 +410,8 @@ async function buildMasterData(progressCb) {
     });
 
     const records = gmlFeatures.flatMap(feat => {
-        const fAda = feat.ada.toString().replace(/^0+/, '');
-        const fParsel = feat.parsel.toString().replace(/^0+/, '');
+        const fAda = feat.ada.toString().replace(/^0+/, '') || '0';
+        const fParsel = feat.parsel.toString().replace(/^0+/, '') || '0';
         const fMahalle = getCleanMahalle(feat.mahalle);
 
         const pList = parselMap.get(`${fMahalle}-${fAda}-${fParsel}`);
