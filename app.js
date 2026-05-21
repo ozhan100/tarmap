@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.2.1";
+const APP_VERSION = "2.2.2";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -74,8 +74,8 @@ function initAuth() {
         if (e.key === 'Enter') handleLogin();
     });
 
-    if (sessionStorage.getItem('isLoggedIn') === 'true') {
-        currentUser = sessionStorage.getItem('currentUser');
+    if (sessionStorage.getItem('tarmap_isLoggedIn') === 'true') {
+        currentUser = sessionStorage.getItem('tarmap_currentUser');
         showApp();
     }
 }
@@ -112,12 +112,12 @@ async function handleLogin() {
         if (data && data.basarili) {
             if (data.tarmap_yetkisi) {
                 currentUser = data.kullanici_adi;
-                sessionStorage.setItem('isLoggedIn', 'true');
-                sessionStorage.setItem('currentUser', currentUser);
+                sessionStorage.setItem('tarmap_isLoggedIn', 'true');
+                sessionStorage.setItem('tarmap_currentUser', currentUser);
 
                 if (data.telegram_token) {
-                    sessionStorage.setItem('tgToken', data.telegram_token);
-                    sessionStorage.setItem('tgChat', data.telegram_chat_id);
+                    sessionStorage.setItem('tarmap_tgToken', data.telegram_token);
+                    sessionStorage.setItem('tarmap_tgChat', data.telegram_chat_id);
                 }
                 await sendNotification(`${currentUser} sisteme giriş yaptı!\nUygulama: TarMap v${APP_VERSION}`);
                 showApp();
@@ -141,8 +141,8 @@ async function handleLogin() {
 }
 
 async function sendNotification(message) {
-    const tgToken = sessionStorage.getItem('tgToken');
-    const tgChat = sessionStorage.getItem('tgChat');
+    const tgToken = sessionStorage.getItem('tarmap_tgToken');
+    const tgChat = sessionStorage.getItem('tarmap_tgChat');
 
     if (AUTH_CONFIG.notificationEnabled && tgToken && tgChat) {
         try {
@@ -818,7 +818,10 @@ function showParselInfo(feature, owner, fromSearch = false) {
 function setupTools() {
     closePanelBtn.onclick = () => infoPanel.classList.add('hidden');
     document.getElementById('logout-button').onclick = () => {
-        sessionStorage.removeItem('isLoggedIn');
+        sessionStorage.removeItem('tarmap_isLoggedIn');
+        sessionStorage.removeItem('tarmap_currentUser');
+        sessionStorage.removeItem('tarmap_tgToken');
+        sessionStorage.removeItem('tarmap_tgChat');
         location.reload();
     };
 
