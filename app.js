@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.1.4";
+const APP_VERSION = "2.1.6";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -189,7 +189,7 @@ async function initLeafletMap() {
     setupTools();
     setupSearch();
     setupSettings();
-    
+
     await loadData();
     startLocationTracking();
     loadingOverlay.classList.add('hidden');
@@ -238,13 +238,13 @@ function setupSettings() {
         }, 80);
     });
 
-    const gmlInput   = document.getElementById('local-gml');
-    const csvInput   = document.getElementById('local-csv');
+    const gmlInput = document.getElementById('local-gml');
+    const csvInput = document.getElementById('local-csv');
     const excelInput = document.getElementById('local-excel');
     const processBtn = document.getElementById('process-data-btn');
 
-    gmlInput?.addEventListener('change',   (e) => selectedFiles.gml   = e.target.files[0]);
-    csvInput?.addEventListener('change',   (e) => selectedFiles.csv   = e.target.files[0]);
+    gmlInput?.addEventListener('change', (e) => selectedFiles.gml = e.target.files[0]);
+    csvInput?.addEventListener('change', (e) => selectedFiles.csv = e.target.files[0]);
     excelInput?.addEventListener('change', (e) => selectedFiles.excel = e.target.files[0]);
 
     processBtn?.addEventListener('click', async () => {
@@ -255,12 +255,12 @@ function setupSettings() {
         modal.classList.add('hidden');
         showLoading('Veriler birleştiriliyor...');
         const progressArea = document.getElementById('merge-progress-area');
-        const progressBar  = document.getElementById('merge-progress-bar');
+        const progressBar = document.getElementById('merge-progress-bar');
         const progressText = document.getElementById('merge-progress-text');
         if (progressArea) progressArea.classList.remove('hidden');
 
         const updateMergeProgress = (pct, msg) => {
-            if (progressBar)  progressBar.style.width = pct + '%';
+            if (progressBar) progressBar.style.width = pct + '%';
             if (progressText) progressText.textContent = msg;
             const loadingTextEl = document.getElementById('loading-text');
             if (loadingTextEl) loadingTextEl.textContent = msg;
@@ -274,7 +274,7 @@ function setupSettings() {
                 updateMergeProgress(100, 'Tamamlandı!');
 
                 const blob = new Blob([JSON.stringify(masterRecords)], { type: 'application/json' });
-                const url  = URL.createObjectURL(blob);
+                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = 'TarmapVeri.json';
@@ -319,23 +319,23 @@ function renderFromMasterData(records, fitBounds = true) {
         const hasInfo = !!(rec.isletme || rec.urun);
 
         const polygon = L.polygon(rec.coords, {
-            color:       hasInfo ? '#2ecc71' : '#95a5a6',
-            weight:      2,
-            opacity:     0.8,
-            fillColor:   hasInfo ? '#2ecc71' : '#95a5a6',
+            color: hasInfo ? '#2ecc71' : '#95a5a6',
+            weight: 2,
+            opacity: 0.8,
+            fillColor: hasInfo ? '#2ecc71' : '#95a5a6',
             fillOpacity: 0.25
         }).addTo(map);
 
         const feature = { ada: rec.ada, parsel: rec.parsel, mahalle: rec.mahalle, coords: rec.coords };
-        const owner   = hasInfo ? {
+        const owner = hasInfo ? {
             'İşletme Adı': rec.isletme,
-            'TC':          rec.tc,
-            'Köy':         rec.mahalle,
-            'Ürün':        rec.urun,
-            'Alan':        rec.alan,
+            'TC': rec.tc,
+            'Köy': rec.mahalle,
+            'Ürün': rec.urun,
+            'Alan': rec.alan,
             'Tarım Şekli': rec.tarim_sekli,
             'Ekim Tarihi': rec.ekim_tarihi,
-            _phone:        rec.telefon || null
+            _phone: rec.telefon || null
         } : null;
 
         polygon.on('click', (e) => {
@@ -343,11 +343,11 @@ function renderFromMasterData(records, fitBounds = true) {
             L.DomEvent.stopPropagation(e);
             showParselInfo(feature, owner);
         });
-        
-        polygon.on('mouseover', () => { 
-            if (!isMeasuringDist && !isMeasuringArea) polygon.setStyle({ fillOpacity: 0.5 }); 
+
+        polygon.on('mouseover', () => {
+            if (!isMeasuringDist && !isMeasuringArea) polygon.setStyle({ fillOpacity: 0.5 });
         });
-        polygon.on('mouseout',  () => polygon.setStyle({ fillOpacity: 0.25 }));
+        polygon.on('mouseout', () => polygon.setStyle({ fillOpacity: 0.25 }));
 
         bounds.extend(polygon.getBounds());
         mapPolygons.push(polygon);
@@ -385,7 +385,7 @@ async function buildMasterData(progressCb) {
     }
     progressCb?.(70, 'Veriler eşleştiriliyor...');
 
-    const farmerByTC   = new Map();
+    const farmerByTC = new Map();
     const farmerByName = new Map();
     farmerData.forEach(f => {
         const tc = (f['TC_V NO'] || f['TC'] || f['T.C. No'] || f['TC No'] || f['T.C.'] || '').trim();
@@ -396,63 +396,92 @@ async function buildMasterData(progressCb) {
 
     const parselMap = new Map();
     parselData.forEach(p => {
-        const rawMahalle = p['Köy'] || p['KÖY'] || p['Mahalle'] || p['MAHALLE'] || 
-                           p['Mahalle Adı'] || p['Köyü'] || p['Köy/Mahalle'] || 
-                           p['KÖY/MAHALLE'] || p['KÖY/MAHALLE ADI'] || p['İlçe/Köy/Mahalle'] || '';
+        const rawMahalle = p['Köy'] || p['KÖY'] || p['Mahalle'] || p['MAHALLE'] ||
+            p['Mahalle Adı'] || p['Köyü'] || p['Köy/Mahalle'] ||
+            p['KÖY/MAHALLE'] || p['KÖY/MAHALLE ADI'] || p['İlçe/Köy/Mahalle'] || '';
         const mahalle = getCleanMahalle(rawMahalle);
-        const ada    = (p['Ada\nNo'] || p['Ada No'] || p['Ada'] || p['AdaNo'] || p['Ada_No'] || '').toString().trim().replace(/^0+/, '') || '0';
+        const ada = (p['Ada\nNo'] || p['Ada No'] || p['Ada'] || p['AdaNo'] || p['Ada_No'] || '').toString().trim().replace(/^0+/, '') || '0';
         const parsel = (p['Parsel\nNo'] || p['Parsel No'] || p['Parsel'] || p['ParselNo'] || p['Parsel_No'] || '').toString().trim().replace(/^0+/, '') || '0';
-        
+
         const key = `${mahalle}-${ada}-${parsel}`;
+        p._matched = false;
         if (!parselMap.has(key)) parselMap.set(key, []);
         parselMap.get(key).push(p);
     });
 
     const records = gmlFeatures.flatMap(feat => {
-        const fAda    = feat.ada.toString().replace(/^0+/, '');
+        const fAda = feat.ada.toString().replace(/^0+/, '');
         const fParsel = feat.parsel.toString().replace(/^0+/, '');
         const fMahalle = getCleanMahalle(feat.mahalle);
-        
+
         const pList = parselMap.get(`${fMahalle}-${fAda}-${fParsel}`);
-        
+
         if (!pList || pList.length === 0) {
             return [{
-                ada:        feat.ada,
-                parsel:     feat.parsel,
-                mahalle:    feat.mahalle,
-                coords:     feat.coords,
-                isletme:    '',
-                tc:         '',
-                urun:       '',
-                alan:       '',
-                tarim_sekli:'',
-                ekim_tarihi:'',
-                telefon:    ''
+                ada: feat.ada,
+                parsel: feat.parsel,
+                mahalle: feat.mahalle,
+                coords: feat.coords,
+                isletme: '',
+                tc: '',
+                urun: '',
+                alan: '',
+                tarim_sekli: '',
+                ekim_tarihi: '',
+                telefon: ''
             }];
         }
 
         return pList.map(p => {
-            const pTC   = (p['TC'] || p['TC / Vergi No'] || '').trim();
+            p._matched = true;
+            const pTC = (p['TC'] || p['TC / Vergi No'] || '').trim();
             const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
             const farmer = (pTC && farmerByTC.get(pTC)) || (pName && farmerByName.get(pName)) || {};
-            const phone  = farmer['TELEFON'] || farmer['Telefon'] || farmer['Cep Tel'] || farmer['GSM'] || farmer['CEP TEL'] || '';
-            const adres  = farmer['ADRES'] || farmer['Adres'] || farmer['Adresi'] || p['Köy'] || p['KÖY'] || p['Mahalle'] || p['MAHALLE'] || p['Köyü'] || '';
-            
+            const phone = farmer['TELEFON'] || farmer['Telefon'] || farmer['Cep Tel'] || farmer['GSM'] || farmer['CEP TEL'] || '';
+            const adres = farmer['ADRES'] || farmer['Adres'] || farmer['Adresi'] || p['Köy'] || p['KÖY'] || p['Mahalle'] || p['MAHALLE'] || p['Köyü'] || '';
+
             return {
-                ada:        feat.ada,
-                parsel:     feat.parsel,
-                mahalle:    feat.mahalle,
-                coords:     feat.coords,
-                isletme:    p['İşletme Adı'] || p['İşletme'] || p['ADI SOYADI'] || p['AD SOYAD'] || '',
-                tc:         pTC,
-                urun:       p['Ürün'] || p['ÜRÜN'] || '',
-                alan:       p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
-                tarim_sekli:p['Tarım Şekli'] || '',
-                ekim_tarihi:p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
-                telefon:    phone,
-                adres:      adres
+                ada: feat.ada,
+                parsel: feat.parsel,
+                mahalle: feat.mahalle,
+                coords: feat.coords,
+                isletme: p['İşletme Adı'] || p['İşletme'] || p['ADI SOYADI'] || p['AD SOYAD'] || '',
+                tc: pTC,
+                urun: p['Ürün'] || p['ÜRÜN'] || '',
+                alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
+                tarim_sekli: p['Tarım Şekli'] || '',
+                ekim_tarihi: p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
+                telefon: phone,
+                adres: adres
             };
         });
+    });
+
+    // Eşleşmeyen (GML'de harita karşılığı olmayan) Excel parsellerini ekle
+    // Böylece haritada çizilemeseler bile arama ve rapor ekranlarında görünürler.
+    parselData.forEach(p => {
+        if (!p._matched) {
+            const pTC = (p['TC'] || p['TC / Vergi No'] || '').trim();
+            const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
+            const farmer = (pTC && farmerByTC.get(pTC)) || (pName && farmerByName.get(pName)) || {};
+            const phone = farmer['TELEFON'] || farmer['Telefon'] || farmer['Cep Tel'] || farmer['GSM'] || farmer['CEP TEL'] || '';
+            const rawMahalle = p['Köy'] || p['KÖY'] || p['Mahalle'] || p['MAHALLE'] || p['Köyü'] || p['Mahalle Adı'] || '';
+
+            records.push({
+                ada: (p['Ada\nNo'] || p['Ada No'] || p['Ada'] || p['AdaNo'] || p['Ada_No'] || '').toString().trim().replace(/^0+/, '') || '0',
+                parsel: (p['Parsel\nNo'] || p['Parsel No'] || p['Parsel'] || p['ParselNo'] || p['Parsel_No'] || '').toString().trim().replace(/^0+/, '') || '0',
+                mahalle: getCleanMahalle(rawMahalle) || rawMahalle,
+                coords: [], // Geometri yok
+                isletme: p['İşletme Adı'] || p['İşletme'] || p['ADI SOYADI'] || p['AD SOYAD'] || '',
+                tc: pTC,
+                urun: p['Ürün'] || p['ÜRÜN'] || '',
+                alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
+                tarim_sekli: p['Tarım Şekli'] || '',
+                ekim_tarihi: p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
+                telefon: phone,
+                adres: farmer['ADRES'] || farmer['Adres'] || farmer['Adresi'] || rawMahalle
+            });
+        }
     });
 
     progressCb?.(88, `${records.length} kayıt birleştirildi.`);
@@ -462,9 +491,9 @@ async function buildMasterData(progressCb) {
 async function readExcelOrCsvSmart(file, keywordSets) {
     const name = file.name.toLowerCase();
     if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-        const data     = await file.arrayBuffer();
+        const data = await file.arrayBuffer();
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
-        const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
         let rangeIdx = 0;
         const primaryKws = keywordSets[0];
@@ -484,7 +513,7 @@ async function readExcelOrCsvSmart(file, keywordSets) {
             return out;
         });
     } else {
-        const text   = await file.text();
+        const text = await file.text();
         const parsed = Papa.parse(text, { header: true, delimiter: ';', skipEmptyLines: true });
         return parsed.data.map(row => {
             const out = {};
@@ -613,11 +642,11 @@ function setupSearch() {
             infoPanel.classList.add('hidden');
             return;
         }
-        
+
         let normalizedQuery = normalizeText(query);
         // 'yem bitkisi' aramalarını tek bir özel anahtar kelimeye dönüştür
         normalizedQuery = normalizedQuery.replace(/yem bitkis[iİ]/g, 'yem_bitkisi_alias').replace(/yem bitkiler[iİ]/g, 'yem_bitkisi_alias');
-        
+
         const searchTerms = normalizedQuery.split(/\s+/);
         const YEM_BITKISI_LISTESI = [
             "ARİ OTU(YEŞİL OT)",
@@ -643,7 +672,7 @@ function setupSearch() {
             const rowText = normalizeText(
                 `${r.isletme} ${r.mahalle} ${r.urun} ${r.tc} ${r.ada} ${r.parsel} ${r.ada}/${r.parsel}`
             );
-            
+
             return searchTerms.every(term => {
                 if (term === 'yem_bitkisi_alias' || term === 'yem') {
                     const urunNorm = normalizeText(r.urun);
@@ -695,18 +724,20 @@ function setupSearch() {
     }
 }
 
-window.showSearchResult = function(index) {
+window.showSearchResult = function (index) {
     if (!currentSearchResults || currentSearchResults.length === 0) return;
-    
+
     if (index < 0) index = currentSearchResults.length - 1;
     if (index >= currentSearchResults.length) index = 0;
-    
+
     currentSearchIndex = index;
     const r = currentSearchResults[index];
-    
-    const bounds = L.polygon(r.coords).getBounds();
-    map.fitBounds(bounds, { animate: false, padding: [20, 20] });
-    
+
+    if (r.coords && r.coords.length > 0) {
+        const bounds = L.polygon(r.coords).getBounds();
+        map.fitBounds(bounds, { animate: false, padding: [20, 20] });
+    }
+
     showParselInfo(r, r.isletme ? {
         'İşletme Adı': r.isletme,
         'TC': r.tc,
@@ -723,7 +754,7 @@ function showParselInfo(feature, owner, fromSearch = false) {
     activeFeature = feature;
     currentOwnerData = owner;
     infoPanel.classList.remove('hidden');
-    
+
     let html = `
         <div style="margin-bottom: 15px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
             <h3 style="font-size: 1.3rem; font-weight: 700; color: #2ecc71; letter-spacing: 0.5px; margin: 0;">${feature.mahalle}</h3>
@@ -880,22 +911,22 @@ window.generateReport = async () => {
 
     const tc = currentOwnerData['TC'];
     const ad = currentOwnerData['İşletme Adı'];
-    
+
     // Eğer aktif bir arama varsa parselleri arama havuzundan, yoksa genel havuzdan seç
     const sourceRecords = isSearchActive ? currentSearchResults : masterRecords;
 
-    const ownerParcels = sourceRecords.filter(r => 
-        (tc && r.tc === tc) || 
+    const ownerParcels = sourceRecords.filter(r =>
+        (tc && r.tc === tc) ||
         (!tc && normalizeText(r.isletme) === normalizeText(ad))
     );
 
     document.getElementById('print-tc').textContent = `: ${tc || '-'}`;
     document.getElementById('print-isim').textContent = `: ${ad || '-'}`;
-    
+
     // Yılı otomatik güncelle
     const yearEl = document.getElementById('print-year');
     if (yearEl) yearEl.textContent = new Date().getFullYear();
-    
+
     // Çiftçi Veri Tabanındaki adres/köy bilgisini al (Yoksa parselin bulunduğu mahalleyi kullan)
     const mahalleler = [...new Set(ownerParcels.map(p => p.adres || p.mahalle))].filter(Boolean).join(', ');
     document.getElementById('print-mahalle').textContent = `: ${mahalleler || '-'}`;
@@ -905,7 +936,7 @@ window.generateReport = async () => {
 
     const appMain = document.getElementById('app');
     const printContainer = document.getElementById('print-container');
-    
+
     // Harita uydu katmanını gizle ve arka planı beyaz yap
     const tilePane = document.querySelector('.leaflet-tile-pane');
     if (tilePane) tilePane.style.display = 'none';
@@ -918,10 +949,37 @@ window.generateReport = async () => {
     const currentZoom = map.getZoom();
 
     for (const p of ownerParcels) {
+        if (!p.coords || p.coords.length === 0) {
+            // Geometri yoksa sadece bilgi kartı ekle
+            const card = document.createElement('div');
+            card.className = 'print-card';
+            card.style.position = 'relative';
+            card.style.height = '160px';
+            card.style.padding = '0';
+            card.style.overflow = 'hidden';
+            card.style.border = '1px solid #555';
+            card.style.display = 'flex';
+            card.style.alignItems = 'center';
+            card.style.justifyContent = 'center';
+            card.style.background = '#f8f9fa';
+            card.innerHTML = `
+                <div style="text-align: center; color: #6c757d;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📍</div>
+                    <div style="font-weight: bold; font-family: Arial;">HARİTA SINIRI YOK</div>
+                    <div style="font-size: 11px; margin-top: 4px;">(${p.mahalle || '-'} ${p.ada || '-'}/${p.parsel || '-'})</div>
+                </div>
+                <div style="position: absolute; top: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.95); padding: 4px; font-size: 11px; text-align: center; border-bottom: 1px solid #777; font-family: Arial, sans-serif; font-weight: bold; box-sizing: border-box;">
+                    ${p.mahalle || '-'} &nbsp;|&nbsp; ${p.ada || '-'}/${p.parsel || '-'} &nbsp;|&nbsp; ${p.urun || '-'}
+                </div>
+            `;
+            if (grid) grid.appendChild(card);
+            continue;
+        }
+
         const bounds = L.polygon(p.coords).getBounds();
         // zoomu biraz geriye çekelim ki parsel tam sığsın (padding eklendi)
         map.fitBounds(bounds, { animate: false, padding: [20, 20] });
-        
+
         // Render wait - haritanın yüklenmesini bekle
         await new Promise(r => setTimeout(r, 600));
 
@@ -963,9 +1021,9 @@ window.generateReport = async () => {
 
     // Restore map state
     map.setView(currentCenter, currentZoom, { animate: false });
-    
+
     hideLoading();
-    
+
     setTimeout(() => {
         window.print();
     }, 500);
