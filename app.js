@@ -1,6 +1,6 @@
 // Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.2.2";
+const APP_VERSION = "2.2.4";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -152,7 +152,7 @@ async function sendNotification(message) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chat_id: tgChat,
-                    text: `🔔 TarMap Bildirimi:\n${message}\n📅 ${new Date().toLocaleString('tr-TR')}`
+                    text: message,
                 })
             });
         } catch (error) {
@@ -604,16 +604,28 @@ function parseGML(xmlString) {
     }
 }
 
+/**
+ * AGE programındaki KelimeKucult() fonksiyonunun JS karşılığı.
+ * Türkçe büyük → küçük harf dönüşümünü tüm tarayıcılarda tutarlı yapar:
+ *   İ → i  (Türkçe noktalı büyük i)
+ *   I → ı  (Latin büyük I → Türkçe küçük ı)
+ *   Ş Ğ Ü Ö Ç → ş ğ ü ö ç
+ * toLocaleLowerCase('tr-TR') iOS Safari ve eski Android WebView'da
+ * farklı sonuç verebilir; bu yüzden replace zinciri + toLowerCase kullanıyoruz.
+ */
 function normalizeText(text) {
-    if (!text) return "";
-    let str = text.toString();
-    const mapping = {
-        'İ': 'i', 'I': 'ı', 'Ş': 'ş', 'Ğ': 'ğ', 'Ü': 'ü', 'Ö': 'ö', 'Ç': 'ç',
-        'i': 'i', 'ı': 'ı', 'ş': 'ş', 'ğ': 'ğ', 'ü': 'ü', 'ö': 'ö', 'ç': 'ç'
-    };
-    str = str.replace(/[İIŞĞÜÖÇ]/g, (letter) => mapping[letter] || letter.toLowerCase());
-    str = str.toLowerCase();
-    return str.replace(/\s+/g, ' ').trim();
+    if (text === null || text === undefined || text === '') return '';
+    return String(text)
+        .replace(/İ/g, 'i')
+        .replace(/I/g, 'ı')
+        .replace(/Ş/g, 'ş')
+        .replace(/Ğ/g, 'ğ')
+        .replace(/Ü/g, 'ü')
+        .replace(/Ö/g, 'ö')
+        .replace(/Ç/g, 'ç')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 
@@ -669,13 +681,14 @@ function setupSearch() {
         ].map(normalizeText);
 
         currentSearchResults = masterRecords.filter(r => {
+            // Her alan için null/undefined güvenliği: String() ile sarıyoruz
             const rowText = normalizeText(
-                `${r.isletme} ${r.mahalle} ${r.urun} ${r.tc} ${r.ada} ${r.parsel} ${r.ada}/${r.parsel}`
+                `${r.isletme || ''} ${r.mahalle || ''} ${r.urun || ''} ${r.tc || ''} ${r.ada || ''} ${r.parsel || ''} ${r.ada || ''}/${r.parsel || ''}`
             );
 
             return searchTerms.every(term => {
                 if (term === 'yem_bitkisi_alias') {
-                    const urunNorm = normalizeText(r.urun);
+                    const urunNorm = normalizeText(r.urun || '');
                     return YEM_BITKISI_LISTESI.some(yem => urunNorm.includes(yem));
                 }
                 return rowText.includes(term);
