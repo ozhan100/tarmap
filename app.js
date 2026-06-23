@@ -1,6 +1,6 @@
 ﻿// Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.2.5";
+const APP_VERSION = "2.2.6";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -266,35 +266,26 @@ function setupSettings() {
             if (loadingTextEl) loadingTextEl.textContent = msg;
         };
 
-        setTimeout(async () => {
-            try {
-                masterRecords = await buildMasterData(updateMergeProgress);
-                updateMergeProgress(90, 'Harita çiziliyor...');
-                renderFromMasterData(masterRecords);
-                updateMergeProgress(100, 'Tamamlandı!');
+        try {
+            masterRecords = await buildMasterData(updateMergeProgress);
+            updateMergeProgress(90, 'Harita çiziliyor...');
+            renderFromMasterData(masterRecords);
+            updateMergeProgress(100, 'Tamamlandı!');
 
-                const blob = new Blob([JSON.stringify(masterRecords)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'TarmapVeri.json';
-                a.style.display = 'none';
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 1000);
+            // Blob'u hafızada tut — kullanıcı kaydet butonuna basınca indir
+            const blob = new Blob([JSON.stringify(masterRecords)], { type: 'application/json' });
+            const downloadUrl = URL.createObjectURL(blob);
 
-                alert(`✅ ${masterRecords.length} parsel işlendi.\n\nTarmapVeri.json indirildi.\n(Dosya indirilmezse tarayıcınızın indirme izinlerini kontrol edin.`);
-            } catch (err) {
-                console.error(err);
-                alert('İşlem hatası: ' + err.message + '\n\nNot: Dosya seçimi sırasında sayfadan ayrılmadığınızdan emin olun.');
-            } finally {
-                hideLoading();
-                if (progressArea) progressArea.classList.add('hidden');
-            }
-        }, 80);
+            // Kaydet butonunu ekrana getir (mobil uyumlu: kullanıcı eylemiyle tetiklenir)
+            showSavePrompt(downloadUrl, masterRecords.length);
+
+        } catch (err) {
+            console.error(err);
+            alert('İşlem hatası: ' + err.message);
+        } finally {
+            hideLoading();
+            if (progressArea) progressArea.classList.add('hidden');
+        }
     });
 }
 
@@ -307,6 +298,75 @@ function showLoading(msg) {
 }
 function hideLoading() {
     if (loadingOverlay) loadingOverlay.classList.add('hidden');
+}
+
+/**
+ * İşlem tamamlandığında ekranda kaydet kartı gösterir.
+ * Mobil tarayıcılarda otomatik tetiklenen indirmeler güvenlik
+ * nedeniyle engellendiğinden, kullanıcının bizzat tıkladığı bir
+ * bağlantı kullanılır — bu şekilde tarayıcı izin veriyor.
+ */
+function showSavePrompt(downloadUrl, recordCount) {
+    // Önceki varsa kaldır
+    const existing = document.getElementById('save-prompt-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'save-prompt-overlay';
+    overlay.style.cssText = `
+        position: fixed; inset: 0; z-index: 99999;
+        background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+        display: flex; align-items: center; justify-content: center;
+        padding: 24px; box-sizing: border-box;
+    `;
+
+    overlay.innerHTML = `
+        <div style="
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 1px solid rgba(46,204,113,0.4);
+            border-radius: 20px; padding: 32px 28px;
+            max-width: 360px; width: 100%; text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(46,204,113,0.15);
+        ">
+            <div style="font-size: 3rem; margin-bottom: 12px;">✅</div>
+            <div style="color: #2ecc71; font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">
+                İşlem Tamamlandı!
+            </div>
+            <div style="color: #94a3b8; font-size: 0.95rem; margin-bottom: 24px; line-height: 1.5;">
+                <strong style="color:#fff;">${recordCount}</strong> parsel birleştirildi.<br>
+                Aşağıdaki butona basarak dosyayı <em>İndirilenler</em> klasörüne kaydedin.
+            </div>
+
+            <a id="save-json-link" href="${downloadUrl}" download="TarmapVeri.json" style="
+                display: block; width: 100%; box-sizing: border-box;
+                padding: 16px 20px;
+                background: linear-gradient(135deg, #16a34a, #22c55e);
+                color: white; font-size: 1.05rem; font-weight: 700;
+                border-radius: 14px; text-decoration: none;
+                box-shadow: 0 6px 20px rgba(34,197,94,0.35);
+                letter-spacing: 0.3px;
+                transition: transform 0.15s, box-shadow 0.15s;
+            " ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
+                📥 TarmapVeri.json'u Kaydet
+            </a>
+
+            <button onclick="
+                document.getElementById('save-prompt-overlay').remove();
+            " style="
+                margin-top: 14px; background: none; border: none;
+                color: #64748b; font-size: 0.9rem; cursor: pointer; padding: 8px;
+            ">Kapat (Harita zaten yüklendi)</button>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Linke tıklandıktan 2 saniye sonra URL'yi serbest bırak
+    document.getElementById('save-json-link').addEventListener('click', () => {
+        setTimeout(() => {
+            URL.revokeObjectURL(downloadUrl);
+        }, 2000);
+    });
 }
 
 function renderFromMasterData(records, fitBounds = true) {
