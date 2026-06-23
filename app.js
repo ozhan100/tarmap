@@ -1,6 +1,6 @@
-// Configuration
+﻿// Configuration
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.2.4";
+const APP_VERSION = "2.2.5";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -278,13 +278,18 @@ function setupSettings() {
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = 'TarmapVeri.json';
+                a.style.display = 'none';
+                document.body.appendChild(a);
                 a.click();
-                URL.revokeObjectURL(url);
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 1000);
 
-                alert(`✅ ${masterRecords.length} parsel işlendi.\n\nTarmapVeri.json indirildi.`);
+                alert(`✅ ${masterRecords.length} parsel işlendi.\n\nTarmapVeri.json indirildi.\n(Dosya indirilmezse tarayıcınızın indirme izinlerini kontrol edin.`);
             } catch (err) {
                 console.error(err);
-                alert('İşlem hatası: ' + err.message);
+                alert('İşlem hatası: ' + err.message + '\n\nNot: Dosya seçimi sırasında sayfadan ayrılmadığınızdan emin olun.');
             } finally {
                 hideLoading();
                 if (progressArea) progressArea.classList.add('hidden');
