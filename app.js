@@ -1,6 +1,7 @@
 // Configuration
+// her güncellemeden sonra APP_VERSION 0.0.1 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.2.6";
+const APP_VERSION = "2.4.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -168,6 +169,17 @@ function showApp() {
     setTimeout(() => {
         if (map) map.invalidateSize();
     }, 500);
+
+    // Otomatik veri yükleme: girişten hemen sonra Downloads klasörünü tara
+    setTimeout(async () => {
+        try {
+            if (typeof window.autoLoadFromDownloads === 'function') {
+                await window.autoLoadFromDownloads();
+            }
+        } catch (err) {
+            console.warn('Otomatik veri yükleme başarısız:', err);
+        }
+    }, 800);
 }
 
 async function initLeafletMap() {
@@ -728,6 +740,56 @@ function getCleanMahalle(str) {
     return s.replace(/\b(mahallesi|mah|mah\.|köyü|koyu|köy)\b/g, '').trim();
 }
 
+// 'yem bitkisi' aramasında aranacak ürün listesi (global sabit)
+const YEM_BITKISI_LISTESI = [
+    "ARİ OTU(YEŞİL OT)",
+    "ÇAYIR OTU(MUHTELİF)",
+    "FİĞ(YEŞİL OT)",
+    "HAYVAN PANCARI(YEŞİL OT)",
+    "İTALYAN ÇİMİ(YEŞİL OT)",
+    "KORUNGA(YEŞİL OT)",
+    "MISIR(SİLAJLIK)",
+    "RYEGRASS(SÜT OTU) (YEŞİL OT)",
+    "SİLAJLIK MISIR(SİLAJLIK)",
+    "SORGUM SUDAN OTU MELEZİ(SİLAJLIK)",
+    "SORGUM SUDAN OTU MELEZİ(YEŞİL OT)",
+    "TRİTİKALE(SİLAJLIK)",
+    "TRİTİKALE(YEŞİL OT)",
+    "YEM BEZELYESİ(YEŞİL OT)",
+    "YONCA(Yeşil Ot)",
+    "YONCA(yonca)",
+    "YULAF(YEŞİL OT)"
+].map(normalizeText);
+
+// Ürün sözlüğü: yüklenen verideki tüm ürün adlarından türetilir.
+// Yazılan bir terimin "ürün adı" olup olmadığını anlamak için kullanılır.
+let _urunDictCache = null;
+function getUrunDict() {
+    if (_urunDictCache && _urunDictCache.ref === masterRecords) return _urunDictCache;
+    const fullNames = new Set();
+    const tokens = new Set();
+    masterRecords.forEach(r => {
+        const u = normalizeText(r.urun || '');
+        if (!u) return;
+        fullNames.add(u);
+        u.replace(/[()]/g, ' ').split(/\s+/).forEach(t => {
+            if (t.length >= 3) tokens.add(t);
+        });
+    });
+    _urunDictCache = { ref: masterRecords, fullNames, tokens };
+    return _urunDictCache;
+}
+
+// Bir arama terimi ürün adı mı? (tam ürün adının alt dizesi veya ürün adının bir parçası)
+function isUrunTerm(term) {
+    const dict = getUrunDict();
+    if (dict.tokens.has(term)) return true;
+    for (const u of dict.fullNames) {
+        if (u.includes(term)) return true;
+    }
+    return false;
+}
+
 function setupSearch() {
     const searchInput = document.getElementById('global-search');
     const searchBtn = document.getElementById('search-button');
@@ -753,25 +815,19 @@ function setupSearch() {
         normalizedQuery = normalizedQuery.replace(/yem bitkis[iİ]/g, 'yem_bitkisi_alias').replace(/yem bitkiler[iİ]/g, 'yem_bitkisi_alias');
 
         const searchTerms = normalizedQuery.split(/\s+/);
-        const YEM_BITKISI_LISTESI = [
-            "ARİ OTU(YEŞİL OT)",
-            "ÇAYIR OTU(MUHTELİF)",
-            "FİĞ(YEŞİL OT)",
-            "HAYVAN PANCARI(YEŞİL OT)",
-            "İTALYAN ÇİMİ(YEŞİL OT)",
-            "KORUNGA(YEŞİL OT)",
-            "MISIR(SİLAJLIK)",
-            "RYEGRASS(SÜT OTU) (YEŞİL OT)",
-            "SİLAJLIK MISIR(SİLAJLIK)",
-            "SORGUM SUDAN OTU MELEZİ(SİLAJLIK)",
-            "SORGUM SUDAN OTU MELEZİ(YEŞİL OT)",
-            "TRİTİKALE(SİLAJLIK)",
-            "TRİTİKALE(YEŞİL OT)",
-            "YEM BEZELYESİ(YEŞİL OT)",
-            "YONCA(Yeşil Ot)",
-            "YONCA(yonca)",
-            "YULAF(YEŞİL OT)"
-        ].map(normalizeText);
+
+        // Terimleri ikiye ayır:
+        // - ürünTerms: ürün adı olanlar (ör. "buğday", "arpa", "mısır") → OR ile aranır
+        // - otherTerms: isim/köy/TC/ada/parsel gibi diğer terimler → AND ile aranır
+        const urunTerms = [];
+        const otherTerms = [];
+        searchTerms.forEach(term => {
+            if (term === 'yem_bitkisi_alias' || isUrunTerm(term)) {
+                urunTerms.push(term);
+            } else {
+                otherTerms.push(term);
+            }
+        });
 
         currentSearchResults = masterRecords.filter(r => {
             // Her alan için null/undefined güvenliği: String() ile sarıyoruz
@@ -779,13 +835,23 @@ function setupSearch() {
                 `${r.isletme || ''} ${r.mahalle || ''} ${r.urun || ''} ${r.tc || ''} ${r.ada || ''} ${r.parsel || ''} ${r.ada || ''}/${r.parsel || ''}`
             );
 
-            return searchTerms.every(term => {
-                if (term === 'yem_bitkisi_alias') {
-                    const urunNorm = normalizeText(r.urun || '');
-                    return YEM_BITKISI_LISTESI.some(yem => urunNorm.includes(yem));
-                }
-                return rowText.includes(term);
-            });
+            // Ürün dışı terimler: hepsi satırda bulunmalı (AND)
+            if (!otherTerms.every(term => rowText.includes(term))) return false;
+
+            // Ürün terimleri varsa: herhangi biri satırda bulunmalı (OR),
+            // tıpkı "yem bitkisi" araması gibi.
+            if (urunTerms.length > 0) {
+                const urunOk = urunTerms.some(term => {
+                    if (term === 'yem_bitkisi_alias') {
+                        const urunNorm = normalizeText(r.urun || '');
+                        return YEM_BITKISI_LISTESI.some(yem => urunNorm.includes(yem));
+                    }
+                    return rowText.includes(term);
+                });
+                if (!urunOk) return false;
+            }
+
+            return true;
         });
 
         if (currentSearchResults.length > 0) {
