@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.0.1 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.4.0";
+const APP_VERSION = "2.5.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -737,7 +737,11 @@ function normalizeText(text) {
 function getCleanMahalle(str) {
     if (!str) return "";
     let s = normalizeText(str);
-    return s.replace(/\b(mahallesi|mah|mah\.|köyü|koyu|köy)\b/g, '').trim();
+    // Boşlukla ayrılmış ekler: "çavuşköy mahallesi" -> "çavuşköy"
+    s = s.replace(/\b(mahallesi|mah|mah\.|köyü|koyu|köy)\b/g, '');
+    // Birleşik son ekler: "çavuşköy" -> "çavuş"
+    s = s.replace(/(mahallesi|mahalle|köyü|koyu|köy|koy)$/g, '');
+    return s.trim();
 }
 
 // 'yem bitkisi' aramasında aranacak ürün listesi (global sabit)
@@ -829,24 +833,35 @@ function setupSearch() {
             }
         });
 
+        // Terim satırla eşleşiyor mu? Köy adlarında ekleri esnetir:
+        // "çavuşköy" ↔ verideki "çavuş" gibi. (getCleanMahalle üretilen
+        // temiz hal de satıra eklendiğinden her iki yazım da bulunur.)
+        const matchesTerm = (term, rowText) => {
+            if (rowText.includes(term)) return true;
+            const cleanTerm = getCleanMahalle(term);
+            return !!cleanTerm && cleanTerm !== term && rowText.includes(cleanTerm);
+        };
+
         currentSearchResults = masterRecords.filter(r => {
             // Her alan için null/undefined güvenliği: String() ile sarıyoruz
+            // Mahallenin hem ham hem "köy/mahalle ekleri atılmış" hali eklenir
             const rowText = normalizeText(
-                `${r.isletme || ''} ${r.mahalle || ''} ${r.urun || ''} ${r.tc || ''} ${r.ada || ''} ${r.parsel || ''} ${r.ada || ''}/${r.parsel || ''}`
+                `${r.isletme || ''} ${r.mahalle || ''} ${getCleanMahalle(r.mahalle || '')} ${r.urun || ''} ${r.tc || ''} ${r.ada || ''} ${r.parsel || ''} ${r.ada || ''}/${r.parsel || ''}`
             );
 
             // Ürün dışı terimler: hepsi satırda bulunmalı (AND)
-            if (!otherTerms.every(term => rowText.includes(term))) return false;
+            if (!otherTerms.every(term => matchesTerm(term, rowText))) return false;
 
             // Ürün terimleri varsa: herhangi biri satırda bulunmalı (OR),
-            // tıpkı "yem bitkisi" araması gibi.
+            // tıpkı "yem bitkisi" araması gibi. Bulunmayan ürün atlanır,
+            // diğer ürünlerin sonuçları gösterilir.
             if (urunTerms.length > 0) {
                 const urunOk = urunTerms.some(term => {
                     if (term === 'yem_bitkisi_alias') {
                         const urunNorm = normalizeText(r.urun || '');
                         return YEM_BITKISI_LISTESI.some(yem => urunNorm.includes(yem));
                     }
-                    return rowText.includes(term);
+                    return matchesTerm(term, rowText);
                 });
                 if (!urunOk) return false;
             }
