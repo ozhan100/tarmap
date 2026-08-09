@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.70";
+const APP_VERSION = "2.8.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -441,16 +441,16 @@ async function showSavePrompt(jsonContent, recordCount) {
 // Uydu görüntüsündeki yeşil tarla/orman tonlarıyla karışmaması için
 // yeşil yerine parlak ve uyduda nadir bulunan renkler kullanılır.
 const PRODUCT_GROUP_COLORS = {
-    tahil:  { color: '#E53935', name: 'Tahıllar (Buğday, Arpa, Yulaf, Mısır)' },
-    yem:    { color: '#29B6F6', name: 'Yem Bitkileri (Yonca, Fiğ, Silajlık Mısır)' },
-    meyve:  { color: '#8E24AA', name: 'Meyveler (Ceviz, Elma, Kiraz, Üzüm)' },
-    sebze:  { color: '#FB8C00', name: 'Sebzeler (Domates, Biber, Patates)' },
-    yagli:  { color: '#EC407A', name: 'Yağlı Tohumlar (Ayçiçeği)' },
-    bos:    { color: '#A1887F', name: 'Boş Bırakılan / Nadas' },
-    orman:  { color: '#6D4C41', name: 'Orman / Kavaklık' },
-    diger:  { color: '#CFD8DC', name: 'Diğer Ürünler' },
-    karisik:{ color: '#00BCD4', name: 'Karışık (Aynı parselde 2+ ürün grubu)' },
-    bosKayit:{ color: '#9E9E9E', name: 'Üretim Kaydı Yok' }
+    tahil:  { color: '#C94C4C', name: 'Tahıllar (Buğday, Arpa, Yulaf, Mısır)' },
+    yem:    { color: '#72B7D6', name: 'Yem Bitkileri (Yonca, Fiğ, Silajlık Mısır)' },
+    meyve:  { color: '#8E5A9E', name: 'Meyveler (Ceviz, Elma, Kiraz, Üzüm)' },
+    sebze:  { color: '#E99A3D', name: 'Sebzeler (Domates, Biber, Patates)' },
+    yagli:  { color: '#D9829B', name: 'Yağlı Tohumlar (Ayçiçeği)' },
+    bos:    { color: '#C8A77A', name: 'Boş Bırakılan / Nadas' },
+    orman:  { color: '#70503C', name: 'Orman / Kavaklık' },
+    diger:  { color: '#C7C7C7', name: 'Diğer Ürünler' },
+    karisik:{ color: '#3FA7A3', name: 'Karışık (Aynı parselde 2+ ürün grubu)' },
+    bosKayit:{ color: '#808080', name: 'Üretim Kaydı Yok' }
 };
 
 function getProductGroup(urun) {
