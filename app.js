@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.8.0";
+const APP_VERSION = "2.9.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -900,6 +900,78 @@ function isUrunTerm(term) {
     return false;
 }
 
+// ── Alan prefiksli arama (v2.9.0) ──
+// "mahalle: süle" → sadece mahalle alanında
+// "isim ahmet"   → sadece işletme sahibi alanında
+// "ürün: üzüm,arpa" → virgülle ayrılan ürünlerden herhangi biri (OR)
+const FIELD_ALIASES = {
+    mahalle: ['mahalle', 'köy', 'koy'],
+    isim: ['isim', 'işletme', 'isletme', 'sahip', 'çiftçi'],
+    urun: ['ürün', 'urun'],
+    tc: ['tc', 'tckimlik'],
+    ada: ['ada'],
+    parsel: ['parsel']
+};
+
+function parseFieldQuery(rawQuery) {
+    const result = { mahalle: [], isim: [], urun: [], tc: [], ada: [], parsel: [], genel: [] };
+    const tokens = rawQuery.split(/\s+/).filter(Boolean);
+
+    const isFieldName = (t) => {
+        const clean = normalizeText(t).replace(/[:"",.]/g, '');
+        return Object.values(FIELD_ALIASES).some(aliases => aliases.includes(clean));
+    };
+
+    let i = 0;
+    while (i < tokens.length) {
+        const token = tokens[i];
+        const lower = normalizeText(token);
+        const cleanTok = lower.replace(/[:"",.]/g, '');
+
+        let matchedField = null;
+        for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
+            if (aliases.includes(cleanTok)) { matchedField = field; break; }
+        }
+
+        if (!matchedField) {
+            result.genel.push(token);
+            i++;
+            continue;
+        }
+
+        // Değerler: aynı token içinde (isim:süle) veya sonraki alan adına kadar
+        const vals = [];
+        if (lower.includes(':') && token.includes(':') && token.split(':')[1]) {
+            vals.push(token.split(':')[1]);
+        }
+        let j = i + 1;
+        while (j < tokens.length && !isFieldName(tokens[j])) {
+            vals.push(tokens[j]);
+            j++;
+        }
+        result[matchedField].push(vals.join(' '));
+        i = j;
+    }
+    return result;
+}
+
+// Mahalle filtresi: önce tam eşleşme (çavuşköy ↔ çavuş gibi ekler temizlenmiş),
+// tam eşleşen yoksa kısmi (alt dize) eşleşmeye düşer.
+// Böylece "süle" ararken "süleymaniye" karışmaz (tam "SÜLE" varsa sadece o gelir).
+function filterByMahalle(records, terms) {
+    const cleanTerms = terms.map(t => getCleanMahalle(t)).filter(Boolean);
+    const exact = records.filter(r => {
+        const mc = getCleanMahalle(r.mahalle || '');
+        return mc && cleanTerms.some(t => t === mc);
+    });
+    if (exact.length > 0) return exact;
+    return records.filter(r => {
+        const m = normalizeText(r.mahalle || '');
+        const mc = getCleanMahalle(r.mahalle || '');
+        return cleanTerms.some(t => t && (m.includes(t) || mc.includes(t)));
+    });
+}
+
 function setupSearch() {
     const searchInput = document.getElementById('global-search');
     const searchBtn = document.getElementById('search-button');
@@ -920,7 +992,27 @@ function setupSearch() {
             return;
         }
 
-        let normalizedQuery = normalizeText(query);
+        // Alan prefiksli terimleri ayır (v2.9.0):
+        //   mahalle: süle   → sadece mahalle alanında (tam eşleşme öncelikli)
+        //   isim ahmet      → sadece işletme sahibi alanında
+        //   ürün: üzüm,arpa → virgülle ayrılan ürünlerden herhangi biri (OR)
+        //   tc: / ada: / parsel: → ilgili alanda
+        const parsed = parseFieldQuery(query);
+
+        // Ürün alanındaki virgüllü terimleri ayrıştır ("üzüm,arpa,elma")
+        const urunFieldTerms = [];
+        parsed.urun.forEach(v => {
+            v.split(',').map(t => t.trim()).filter(Boolean).forEach(t => urunFieldTerms.push(normalizeText(t)));
+        });
+
+        // İsim alanındaki kelimeleri ayrıştır (hepsi bulunmalı → AND)
+        const isimFieldTerms = [];
+        parsed.isim.forEach(v => {
+            v.split(/\s+/).map(t => t.trim()).filter(Boolean).forEach(t => isimFieldTerms.push(normalizeText(t)));
+        });
+
+        // Prefiksi olmayan genel terimler için akıllı arama mantığı
+        let normalizedQuery = normalizeText(parsed.genel.join(' '));
         // 'yem bitkisi' aramalarını tek bir özel anahtar kelimeye dönüştür
         normalizedQuery = normalizedQuery.replace(/yem bitkis[iİ]/g, 'yem_bitkisi_alias').replace(/yem bitkiler[iİ]/g, 'yem_bitkisi_alias');
 
@@ -948,10 +1040,48 @@ function setupSearch() {
             return !!cleanTerm && cleanTerm !== term && rowText.includes(cleanTerm);
         };
 
-        currentSearchResults = masterRecords.filter(r => {
-            // Her alan için null/undefined güvenliği: String() ile sarıyoruz
-            // Mahallenin hem ham hem "köy/mahalle ekleri atılmış" hali eklenir
+        // Mahalle prefiksi varsa önce tam eşleşme öncelikli daralt.
+        // Böylece "mahalle: süle" yazınca süleymaniye karışmaz.
+        let candidates = masterRecords;
+        if (parsed.mahalle.length) {
+            candidates = filterByMahalle(candidates, parsed.mahalle);
+        }
+
+        currentSearchResults = candidates.filter(r => {
+            // Alan bazlı kontroller
+            if (isimFieldTerms.length) {
+                const isimTxt = normalizeText(r.isletme || '');
+                if (!isimFieldTerms.every(t => isimTxt.includes(t))) return false;
+            }
+
+            if (urunFieldTerms.length) {
+                const urunTxt = normalizeText(r.urun || '');
+                const urunOk = urunFieldTerms.some(t => {
+                    if (t === 'yem_bitkisi_alias') return YEM_BITKISI_LISTESI.some(yem => urunTxt.includes(yem));
+                    return urunTxt.includes(t);
+                });
+                if (!urunOk) return false;
+            }
+
+            if (parsed.tc.length) {
+                const tcTxt = normalizeText(r.tc || '');
+                if (!parsed.tc.some(t => tcTxt.includes(normalizeText(t)))) return false;
+            }
+
+            if (parsed.ada.length) {
+                const adaTxt = normalizeText(r.ada || '');
+                if (!parsed.ada.some(t => adaTxt.includes(normalizeText(t)))) return false;
+            }
+
+            if (parsed.parsel.length) {
+                const parselTxt = normalizeText(r.parsel || '');
+                if (!parsed.parsel.some(t => parselTxt.includes(normalizeText(t)))) return false;
+            }
+
+            // Genel (prefiksi olmayan) terimler için eski akıllı arama
             const rowText = normalizeText(
+                // Her alan için null/undefined güvenliği: String() ile sarıyoruz
+                // Mahallenin hem ham hem "köy/mahalle ekleri atılmış" hali eklenir
                 `${r.isletme || ''} ${r.mahalle || ''} ${getCleanMahalle(r.mahalle || '')} ${r.urun || ''} ${r.tc || ''} ${r.ada || ''} ${r.parsel || ''} ${r.ada || ''}/${r.parsel || ''}`
             );
 
