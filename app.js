@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.0.1 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.6.0";
+const APP_VERSION = "2.7.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -524,6 +524,8 @@ function renderFromMasterData(records, fitBounds = true) {
             fillOpacity: 0.35
         }).addTo(map);
 
+        polygon._rec = rec;
+
         const feature = { ada: rec.ada, parsel: rec.parsel, mahalle: rec.mahalle, coords: rec.coords };
         const owner = hasInfo ? {
             'İşletme Adı': rec.isletme,
@@ -542,11 +544,6 @@ function renderFromMasterData(records, fitBounds = true) {
             showParselInfo(feature, owner);
         });
 
-        polygon.on('mouseover', () => {
-            if (!isMeasuringDist && !isMeasuringArea) polygon.setStyle({ fillOpacity: 0.5 });
-        });
-        polygon.on('mouseout', () => polygon.setStyle({ fillOpacity: 0.25 }));
-
         bounds.extend(polygon.getBounds());
         mapPolygons.push(polygon);
     });
@@ -554,6 +551,22 @@ function renderFromMasterData(records, fitBounds = true) {
     if (fitBounds && mapPolygons.length > 0) {
         map.fitBounds(bounds);
     }
+}
+
+// Bilgi panelinde gösterilen (seçili) parselin içini koyulaştırır.
+// Aynı mahalle-ada-parsel için birden fazla geometri varsa hepsi vurgulanır.
+function highlightSelectedParsel(feature) {
+    mapPolygons.forEach(p => {
+        p.setStyle({ fillOpacity: 0.35, weight: 2 });
+    });
+    if (!feature) return;
+    const key = `${feature.mahalle}-${feature.ada}-${feature.parsel}`;
+    mapPolygons.forEach(p => {
+        const rec = p._rec;
+        if (rec && `${rec.mahalle}-${rec.ada}-${rec.parsel}` === key) {
+            p.setStyle({ fillOpacity: 0.75, weight: 3 });
+        }
+    });
 }
 
 async function buildMasterData(progressCb) {
@@ -1034,6 +1047,7 @@ function showParselInfo(feature, owner, fromSearch = false) {
     activeFeature = feature;
     currentOwnerData = owner;
     infoPanel.classList.remove('hidden');
+    highlightSelectedParsel(feature);
 
     let html = `
         <div style="margin-bottom: 15px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
@@ -1096,7 +1110,10 @@ function showParselInfo(feature, owner, fromSearch = false) {
 }
 
 function setupTools() {
-    closePanelBtn.onclick = () => infoPanel.classList.add('hidden');
+    closePanelBtn.onclick = () => {
+        infoPanel.classList.add('hidden');
+        highlightSelectedParsel(null);
+    };
     document.getElementById('logout-button').onclick = () => {
         sessionStorage.removeItem('tarmap_isLoggedIn');
         sessionStorage.removeItem('tarmap_currentUser');
