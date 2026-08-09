@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.92";
+const APP_VERSION = "2.93";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -186,8 +186,7 @@ async function initLeafletMap() {
     map = L.map('map', {
         center: [40.15, 29.44],
         zoom: 15,
-        zoomControl: false,
-        preferCanvas: true
+        zoomControl: false
     });
 
     L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
@@ -202,9 +201,12 @@ async function initLeafletMap() {
     setupSearch();
     setupSettings();
 
-    await loadData();
-    startLocationTracking();
-    loadingOverlay.classList.add('hidden');
+    try {
+        await loadData();
+        startLocationTracking();
+    } finally {
+        loadingOverlay.classList.add('hidden');
+    }
 }
 
 async function loadData() {
@@ -480,76 +482,86 @@ function getProductGroup(urun) {
 }
 
 function renderFromMasterData(records, fitBounds = true) {
-    // Mevcut poligonları temizle
-    mapPolygons.forEach(p => map.removeLayer(p));
-    mapPolygons = [];
+    try {
+        // Mevcut poligonları temizle
+        mapPolygons.forEach(p => map.removeLayer(p));
+        mapPolygons = [];
 
-    if (!records || !records.length) return;
+        if (!records || !records.length) return;
 
-    const bounds = L.latLngBounds();
+        const bounds = L.latLngBounds();
 
-    // Aynı mahalle-ada-parsel anahtarında birden fazla farklı ürün grubu
-    // varsa parsel "karışık" kabul edilir ve kendine özel renk alır.
-    const groupByKey = new Map();
-    records.forEach(rec => {
-        if (!rec.urun) return;
-        const key = `${rec.mahalle}-${rec.ada}-${rec.parsel}`;
-        if (!groupByKey.has(key)) groupByKey.set(key, new Set());
-        groupByKey.get(key).add(getProductGroup(rec.urun));
-    });
-
-    records.forEach(rec => {
-        if (!rec.coords || !rec.coords.length) return;
-
-        const hasInfo = !!(rec.isletme || rec.urun);
-
-        let fillColor;
-        if (!hasInfo) {
-            fillColor = PRODUCT_GROUP_COLORS.bosKayit.color;
-        } else {
+        // Aynı mahalle-ada-parsel anahtarında birden fazla farklı ürün grubu
+        // varsa parsel "karışık" kabul edilir ve kendine özel renk alır.
+        const groupByKey = new Map();
+        records.forEach(rec => {
+            if (!rec.urun) return;
             const key = `${rec.mahalle}-${rec.ada}-${rec.parsel}`;
-            const groups = groupByKey.get(key);
-            const isKarisik = groups && groups.size > 1;
-            const grp = getProductGroup(rec.urun);
-            fillColor = isKarisik
-                ? PRODUCT_GROUP_COLORS.karisik.color
-                : (PRODUCT_GROUP_COLORS[grp] ? PRODUCT_GROUP_COLORS[grp].color : PRODUCT_GROUP_COLORS.diger.color);
-        }
-
-        const polygon = L.polygon(rec.coords, {
-            color: fillColor,
-            weight: 2,
-            opacity: 0.8,
-            fillColor: fillColor,
-            fillOpacity: 0.35
-        }).addTo(map);
-
-        polygon._rec = rec;
-
-        const feature = { ada: rec.ada, parsel: rec.parsel, mahalle: rec.mahalle, coords: rec.coords };
-        const owner = hasInfo ? {
-            'İşletme Adı': rec.isletme,
-            'TC': rec.tc,
-            'Köy': rec.mahalle,
-            'Ürün': rec.urun,
-            'Alan': rec.alan,
-            'Tarım Şekli': rec.tarim_sekli,
-            'Ekim Tarihi': rec.ekim_tarihi,
-            _phone: rec.telefon || null
-        } : null;
-
-        polygon.on('click', (e) => {
-            if (isMeasuringDist || isMeasuringArea) { addMeasurePoint(e.latlng); return; }
-            L.DomEvent.stopPropagation(e);
-            showParselInfo(feature, owner);
+            if (!groupByKey.has(key)) groupByKey.set(key, new Set());
+            groupByKey.get(key).add(getProductGroup(rec.urun));
         });
 
-        bounds.extend(polygon.getBounds());
-        mapPolygons.push(polygon);
-    });
+        records.forEach(rec => {
+            // Tek kayıttaki bozuk veri diğer parsellerin çizilmesini engellemesin
+            try {
+                if (!rec.coords || !rec.coords.length) return;
 
-    if (fitBounds && mapPolygons.length > 0) {
-        map.fitBounds(bounds);
+                const hasInfo = !!(rec.isletme || rec.urun);
+
+                let fillColor;
+                if (!hasInfo) {
+                    fillColor = PRODUCT_GROUP_COLORS.bosKayit.color;
+                } else {
+                    const key = `${rec.mahalle}-${rec.ada}-${rec.parsel}`;
+                    const groups = groupByKey.get(key);
+                    const isKarisik = groups && groups.size > 1;
+                    const grp = getProductGroup(rec.urun);
+                    fillColor = isKarisik
+                        ? PRODUCT_GROUP_COLORS.karisik.color
+                        : (PRODUCT_GROUP_COLORS[grp] ? PRODUCT_GROUP_COLORS[grp].color : PRODUCT_GROUP_COLORS.diger.color);
+                }
+
+                const polygon = L.polygon(rec.coords, {
+                    color: fillColor,
+                    weight: 2,
+                    opacity: 0.8,
+                    fillColor: fillColor,
+                    fillOpacity: 0.35
+                }).addTo(map);
+
+                polygon._rec = rec;
+
+                const feature = { ada: rec.ada, parsel: rec.parsel, mahalle: rec.mahalle, coords: rec.coords };
+                const owner = hasInfo ? {
+                    'İşletme Adı': rec.isletme,
+                    'TC': rec.tc,
+                    'Köy': rec.mahalle,
+                    'Ürün': rec.urun,
+                    'Alan': rec.alan,
+                    'Tarım Şekli': rec.tarim_sekli,
+                    'Ekim Tarihi': rec.ekim_tarihi,
+                    _phone: rec.telefon || null
+                } : null;
+
+                polygon.on('click', (e) => {
+                    if (isMeasuringDist || isMeasuringArea) { addMeasurePoint(e.latlng); return; }
+                    L.DomEvent.stopPropagation(e);
+                    showParselInfo(feature, owner);
+                });
+
+                bounds.extend(polygon.getBounds());
+                mapPolygons.push(polygon);
+            } catch (err) {
+                console.warn('Parsel çizilemedi:', rec.mahalle, rec.ada, rec.parsel, err);
+            }
+        });
+
+        if (fitBounds && mapPolygons.length > 0) {
+            map.fitBounds(bounds, { animate: false });
+        }
+    } finally {
+        // Yükleme overlay'i her durumda kapansın (Android'de takılı kalmasın)
+        hideLoading();
     }
 }
 

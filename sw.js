@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tarmap-2.92';
+const CACHE_NAME = 'tarmap-2.93';
 const CORE_ASSETS = ['./', './index.html', './styles.css', './app.js'];
 
 self.addEventListener('install', (event) => {
