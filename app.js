@@ -1463,3 +1463,10 @@ document.getElementById('close-print-btn')?.addEventListener('click', () => {
     document.getElementById('print-container').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
 });
+
+// PWA: Service worker kaydı (kurulum butonunun görünmesi için)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW kayıt hatası:', err));
+    });
+}
