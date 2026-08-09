@@ -236,6 +236,45 @@ button:hover {
     text-align: center;
 }
 
+/* Renk Lejantı (v2.6.0) */
+.settings-legend-row {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--glass);
+}
+.settings-legend-row .action-btn-large {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border: 1px solid var(--glass);
+}
+.settings-body {
+    max-height: 55vh;
+    overflow-y: auto;
+}
+.legend-list-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--glass);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: #fff;
+}
+.legend-color {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
 /* App Header */
 header {
     position: fixed;

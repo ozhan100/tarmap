@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tarla Takip Sistemi</title>
-    <link rel="stylesheet" href="styles.css?v=1.9.0">
+    <link rel="stylesheet" href="styles.css?v=1.10.0">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <!-- Leaflet for Maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -25,7 +25,7 @@
             <div class="logo-container">
                 <div class="logo-icon">🚜</div>
                 <h1>TarMap</h1>
-                <div class="version-tag" id="login-version">V2.5.0</div>
+                <div class="version-tag" id="login-version">V2.6.0</div>
             </div>
             <p>Giriş yapmak için şifrenizi giriniz.</p>
             <div class="input-group">
@@ -43,7 +43,7 @@
             <div class="brand">
                 <span class="icon">🌾</span>
                 <span class="title">TarMap</span>
-                <span class="header-version" id="header-version">V2.5.0</span>
+                <span class="header-version" id="header-version">V2.6.0</span>
             </div>
             <div class="controls">
                 <button id="measure-dist" title="Mesafe Ölç" class="tool-btn">📏</button>
@@ -157,6 +157,28 @@
                     </div>
 
                 </div>
+
+                <div class="settings-legend-row">
+                    <button id="open-legend-btn" class="action-btn-large">🎨 Renk Lejantı</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend Modal -->
+        <div id="legend-modal" class="overlay hidden">
+            <div class="settings-card">
+                <div class="settings-header">
+                    <h3>🎨 Harita Renkleri</h3>
+                    <button id="close-legend" class="close-btn">&times;</button>
+                </div>
+                <div class="settings-body">
+                    <p class="settings-hint">
+                        Parseller ürün türüne göre renklendirilir. Aynı parselde
+                        birden fazla farklı ürün grubu varsa <strong>Karışık</strong>
+                        rengini alır.
+                    </p>
+                    <div id="legend-list"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -205,7 +227,7 @@
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auto-load.js?v=1.0.0"></script>
-    <script src="app.js?v=2.5.0"></script>
+    <script src="app.js?v=2.6.0"></script>
 </body>
 
 </html>

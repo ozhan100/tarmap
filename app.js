@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.0.1 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.5.0";
+const APP_VERSION = "2.6.0";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -233,6 +233,34 @@ function setupSettings() {
     const jsonInput = document.getElementById('local-json');
     const loadJsonBtn = document.getElementById('load-json-btn');
 
+    // Renk Lejantı penceresi
+    const legendModal = document.getElementById('legend-modal');
+    const openLegendBtn = document.getElementById('open-legend-btn');
+    const closeLegendBtn = document.getElementById('close-legend');
+
+    const buildLegend = () => {
+        const list = document.getElementById('legend-list');
+        if (!list || list.dataset.built) return;
+        list.dataset.built = '1';
+        list.className = 'legend-list-wrap';
+        Object.entries(PRODUCT_GROUP_COLORS).forEach(([key, val]) => {
+            const row = document.createElement('div');
+            row.className = 'legend-item';
+            row.innerHTML = `<span class="legend-color" style="background:${val.color}"></span><span>${val.name}</span>`;
+            list.appendChild(row);
+        });
+    };
+
+    openLegendBtn?.addEventListener('click', () => {
+        buildLegend();
+        modal.classList.add('hidden');
+        legendModal.classList.remove('hidden');
+    });
+    closeLegendBtn?.addEventListener('click', () => legendModal.classList.add('hidden'));
+    legendModal?.addEventListener('click', (e) => {
+        if (e.target === legendModal) legendModal.classList.add('hidden');
+    });
+
     loadJsonBtn?.addEventListener('click', async () => {
         const file = jsonInput?.files[0];
         if (!file) { alert('Lütfen bir JSON dosyası seçin.'); return; }
@@ -409,6 +437,48 @@ async function showSavePrompt(jsonContent, recordCount) {
     });
 }
 
+// Ürün gruplarına göre renklendirme.
+// Uydu görüntüsündeki yeşil tarla/orman tonlarıyla karışmaması için
+// yeşil yerine parlak ve uyduda nadir bulunan renkler kullanılır.
+const PRODUCT_GROUP_COLORS = {
+    tahil:  { color: '#E53935', name: 'Tahıllar (Buğday, Arpa, Yulaf, Mısır)' },
+    yem:    { color: '#29B6F6', name: 'Yem Bitkileri (Yonca, Fiğ, Silajlık Mısır)' },
+    meyve:  { color: '#8E24AA', name: 'Meyveler (Ceviz, Elma, Kiraz, Üzüm)' },
+    sebze:  { color: '#FB8C00', name: 'Sebzeler (Domates, Biber, Patates)' },
+    yagli:  { color: '#EC407A', name: 'Yağlı Tohumlar (Ayçiçeği)' },
+    bos:    { color: '#A1887F', name: 'Boş Bırakılan / Nadas' },
+    orman:  { color: '#6D4C41', name: 'Orman / Kavaklık' },
+    diger:  { color: '#CFD8DC', name: 'Diğer Ürünler' },
+    karisik:{ color: '#00BCD4', name: 'Karışık (Aynı parselde 2+ ürün grubu)' },
+    bosKayit:{ color: '#9E9E9E', name: 'Üretim Kaydı Yok' }
+};
+
+function getProductGroup(urun) {
+    if (!urun) return null;
+    const u = normalizeText(urun);
+
+    // Yem bitkileri önce kontrol edilir (silajlık mısır bu gruba girer)
+    const yemKws = ['yonca', 'fiğ', 'silaj', 'çayır otu', 'yem bezelyesi', 'ryegrass', 'korunga', 'sorgum', 'arı otu', 'italyan çimi', 'hayvan pancarı'];
+    if (yemKws.some(k => u.includes(k))) return 'yem';
+
+    if (u.includes('orman') || u.includes('kavak')) return 'orman';
+    if (u.includes('boş bırakılan') || u.includes('nadas')) return 'bos';
+    if (u.includes('ayçiçeği')) return 'yagli';
+
+    const sebzeKws = ['domates', 'biber', 'patates', 'fasulye', 'soğan', 'lahana', 'kabak', 'bezelye', 'enginar', 'balkabağı', 'marul', 'salatalık', 'patlıcan', 'sarımsak', 'karnabahar', 'karnıbahar', 'ıspanak', 'pırasa', 'havuç', 'karpuz', 'kavun', 'bamya', 'brokoli', 'hıyar', 'bakla', 'şeker pancarı', 'nohut', 'mercimek', 'kuşkonmaz', 'maydanoz', 'safran'];
+    if (sebzeKws.some(k => u.includes(k))) return 'sebze';
+
+    if (u.includes('susam')) return 'yagli';
+
+    const meyveKws = ['ceviz', 'armut', 'kiraz', 'şeftali', 'elma', 'erik', 'üzüm', 'fındık', 'kestane', 'badem', 'muşmula', 'nektarin', 'yaban mersini', 'ahududu', 'kızılcık', 'trabzon hurması', 'çilek', 'vişne', 'ayva', 'dut', 'böğürtlen', 'zeytin', 'yabanmersini', 'kayısı', 'incir', 'hünnap', 'kuşburnu', 'hurma', 'antep fıstığı'];
+    if (meyveKws.some(k => u.includes(k))) return 'meyve';
+
+    const tahilKws = ['buğday', 'arpa', 'yulaf', 'çavdar', 'tritikale', 'mısır'];
+    if (tahilKws.some(k => u.includes(k))) return 'tahil';
+
+    return 'diger';
+}
+
 function renderFromMasterData(records, fitBounds = true) {
     // Mevcut poligonları temizle
     mapPolygons.forEach(p => map.removeLayer(p));
@@ -418,17 +488,40 @@ function renderFromMasterData(records, fitBounds = true) {
 
     const bounds = L.latLngBounds();
 
+    // Aynı mahalle-ada-parsel anahtarında birden fazla farklı ürün grubu
+    // varsa parsel "karışık" kabul edilir ve kendine özel renk alır.
+    const groupByKey = new Map();
+    records.forEach(rec => {
+        if (!rec.urun) return;
+        const key = `${rec.mahalle}-${rec.ada}-${rec.parsel}`;
+        if (!groupByKey.has(key)) groupByKey.set(key, new Set());
+        groupByKey.get(key).add(getProductGroup(rec.urun));
+    });
+
     records.forEach(rec => {
         if (!rec.coords || !rec.coords.length) return;
 
         const hasInfo = !!(rec.isletme || rec.urun);
 
+        let fillColor;
+        if (!hasInfo) {
+            fillColor = PRODUCT_GROUP_COLORS.bosKayit.color;
+        } else {
+            const key = `${rec.mahalle}-${rec.ada}-${rec.parsel}`;
+            const groups = groupByKey.get(key);
+            const isKarisik = groups && groups.size > 1;
+            const grp = getProductGroup(rec.urun);
+            fillColor = isKarisik
+                ? PRODUCT_GROUP_COLORS.karisik.color
+                : (PRODUCT_GROUP_COLORS[grp] ? PRODUCT_GROUP_COLORS[grp].color : PRODUCT_GROUP_COLORS.diger.color);
+        }
+
         const polygon = L.polygon(rec.coords, {
-            color: hasInfo ? '#2ecc71' : '#95a5a6',
+            color: fillColor,
             weight: 2,
             opacity: 0.8,
-            fillColor: hasInfo ? '#2ecc71' : '#95a5a6',
-            fillOpacity: 0.25
+            fillColor: fillColor,
+            fillOpacity: 0.35
         }).addTo(map);
 
         const feature = { ada: rec.ada, parsel: rec.parsel, mahalle: rec.mahalle, coords: rec.coords };
