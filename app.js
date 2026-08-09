@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.91";
+const APP_VERSION = "2.92";
 
 const AUTH_CONFIG = {
     notificationEnabled: true

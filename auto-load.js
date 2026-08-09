@@ -14,7 +14,7 @@
 
 (function () {
     // her güncellemeden sonra 0.0.1 arttırılsın
-    const AUTO_LOAD_VERSION = "1.0.0";
+    const AUTO_LOAD_VERSION = "1.0.1";
 
     // ── IndexedDB yardımcıları (klasör handle saklamak için) ──────────
     const DB_NAME = "tarmap_auto_load_db";
@@ -147,7 +147,8 @@
 
             if (typeof renderFromMasterData === 'function') {
                 showLoading('Birleşik JSON yükleniyor...');
-                renderFromMasterData(records);
+                masterRecords = records;
+                renderFromMasterData(masterRecords);
                 hideLoading();
                 alert(`✅ Otomatik yüklendi: ${records.length} parsel (${handle.name})`);
                 return true;
