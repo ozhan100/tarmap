@@ -1,11 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.95";
-
-const AUTH_CONFIG = {
-    notificationEnabled: true
-};
+const APP_VERSION = "2.96";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -95,6 +91,18 @@ async function initAuth() {
         sessionStorage.removeItem('tarmap_sessionToken');
         sessionStorage.removeItem('tarmap_currentUser');
     }
+
+    // Kullanım istatistiği: açıkken 2 dakikada bir sunucuya aktiflik sinyali gönder
+    setInterval(async () => {
+        const aktifToken = sessionStorage.getItem('tarmap_sessionToken');
+        if (!aktifToken) return;
+        try {
+            await supabaseClient.rpc('aktiflik_bildir', {
+                p_token: aktifToken,
+                p_uygulama_adi: 'TarMap'
+            });
+        } catch (err) { /* sessiz geç */ }
+    }, 120000);
 }
 
 async function handleLogin() {
@@ -132,7 +140,6 @@ async function handleLogin() {
                 sessionStorage.setItem('tarmap_sessionToken', data.token);
                 sessionStorage.setItem('tarmap_currentUser', currentUser);
 
-                await sendNotification(`${currentUser} sisteme giriş yaptı!\nUygulama: TarMap v${APP_VERSION}`);
                 showApp();
             } else {
                 loginError.innerText = "Bu hesabın TarMap uygulamasına giriş yetkisi yoktur!";
@@ -150,19 +157,6 @@ async function handleLogin() {
         loginButton.innerText = "Giriş Yap";
         loginButton.disabled = false;
         passwordInput.value = '';
-    }
-}
-
-async function sendNotification(message) {
-    if (!AUTH_CONFIG.notificationEnabled) return;
-    try {
-        await supabaseClient.rpc('bildirim_gonder', {
-            p_token: sessionStorage.getItem('tarmap_sessionToken'),
-            p_uygulama_adi: 'TarMap',
-            p_mesaj: message
-        });
-    } catch (error) {
-        console.error("Bildirim hatası:", error);
     }
 }
 
