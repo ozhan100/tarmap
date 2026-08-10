@@ -116,10 +116,6 @@ async function handleLogin() {
                 sessionStorage.setItem('tarmap_isLoggedIn', 'true');
                 sessionStorage.setItem('tarmap_currentUser', currentUser);
 
-                if (data.telegram_token) {
-                    sessionStorage.setItem('tarmap_tgToken', data.telegram_token);
-                    sessionStorage.setItem('tarmap_tgChat', data.telegram_chat_id);
-                }
                 await sendNotification(`${currentUser} sisteme giriş yaptı!\nUygulama: TarMap v${APP_VERSION}`);
                 showApp();
             } else {
@@ -142,23 +138,14 @@ async function handleLogin() {
 }
 
 async function sendNotification(message) {
-    const tgToken = sessionStorage.getItem('tarmap_tgToken');
-    const tgChat = sessionStorage.getItem('tarmap_tgChat');
-
-    if (AUTH_CONFIG.notificationEnabled && tgToken && tgChat) {
-        try {
-            const url = `https://api.telegram.org/bot${tgToken}/sendMessage`;
-            await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: tgChat,
-                    text: message,
-                })
-            });
-        } catch (error) {
-            console.error("Bildirim hatası:", error);
-        }
+    if (!AUTH_CONFIG.notificationEnabled) return;
+    try {
+        await supabaseClient.rpc('bildirim_gonder', {
+            p_uygulama_adi: 'TarMap',
+            p_mesaj: message
+        });
+    } catch (error) {
+        console.error("Bildirim hatası:", error);
     }
 }
 
@@ -1135,8 +1122,6 @@ function setupTools() {
     document.getElementById('logout-button').onclick = () => {
         sessionStorage.removeItem('tarmap_isLoggedIn');
         sessionStorage.removeItem('tarmap_currentUser');
-        sessionStorage.removeItem('tarmap_tgToken');
-        sessionStorage.removeItem('tarmap_tgChat');
         location.reload();
     };
 
