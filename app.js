@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.93";
+const APP_VERSION = "2.94";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initAuth();
 });
 
-function initAuth() {
+async function initAuth() {
     // Set Version labels
     document.getElementById('login-version').innerText = `V${APP_VERSION}`;
     document.getElementById('header-version').innerText = `V${APP_VERSION}`;
@@ -75,9 +75,25 @@ function initAuth() {
         if (e.key === 'Enter') handleLogin();
     });
 
-    if (sessionStorage.getItem('tarmap_isLoggedIn') === 'true') {
-        currentUser = sessionStorage.getItem('tarmap_currentUser');
-        showApp();
+    // Kayıtlı oturum token'ı yalnızca SUNUCUDA doğrulanırsa geçerlidir.
+    // (İstemci bayrağına güvenilmez — sahte "isLoggedIn=true" ile giriş atlanamaz.)
+    const token = sessionStorage.getItem('tarmap_sessionToken');
+    if (token) {
+        try {
+            const { data, error } = await supabaseClient.rpc('oturum_dogrula', {
+                p_token: token,
+                p_uygulama_adi: 'TarMap'
+            });
+            if (!error && data && data.gecerli) {
+                currentUser = data.kullanici_adi;
+                showApp();
+                return;
+            }
+        } catch (err) {
+            console.warn('Oturum doğrulaması başarısız:', err);
+        }
+        sessionStorage.removeItem('tarmap_sessionToken');
+        sessionStorage.removeItem('tarmap_currentUser');
     }
 }
 
@@ -113,7 +129,7 @@ async function handleLogin() {
         if (data && data.basarili) {
             if (data.tarmap_yetkisi) {
                 currentUser = data.kullanici_adi;
-                sessionStorage.setItem('tarmap_isLoggedIn', 'true');
+                sessionStorage.setItem('tarmap_sessionToken', data.token);
                 sessionStorage.setItem('tarmap_currentUser', currentUser);
 
                 await sendNotification(`${currentUser} sisteme giriş yaptı!\nUygulama: TarMap v${APP_VERSION}`);
@@ -1120,7 +1136,9 @@ function setupTools() {
         highlightSelectedParsel(null);
     };
     document.getElementById('logout-button').onclick = () => {
-        sessionStorage.removeItem('tarmap_isLoggedIn');
+        const token = sessionStorage.getItem('tarmap_sessionToken');
+        if (token) supabaseClient.rpc('oturum_kapat', { p_token: token }).catch(() => {});
+        sessionStorage.removeItem('tarmap_sessionToken');
         sessionStorage.removeItem('tarmap_currentUser');
         location.reload();
     };

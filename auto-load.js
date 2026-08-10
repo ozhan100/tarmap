@@ -14,7 +14,7 @@
 
 (function () {
     // her güncellemeden sonra 0.0.1 arttırılsın
-    const AUTO_LOAD_VERSION = "1.0.1";
+    const AUTO_LOAD_VERSION = "1.1.0";
 
     // ── IndexedDB yardımcıları (klasör handle saklamak için) ──────────
     const DB_NAME = "tarmap_auto_load_db";
@@ -95,6 +95,98 @@
         return files;
     }
 
+    // ── Dosya seçim yardımcıları ──────────────────────────────────────
+    // Aynı türden birden fazla dosya varsa en yenisi önerilir; yine de
+    // kullanıcıya seçtirilir (rastgele yükleme → harita karışması önlenir).
+    async function lastModifiedOf(handle) {
+        try {
+            const f = await handle.getFile();
+            return f.lastModified || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    async function sortNewest(candidates) {
+        const dated = await Promise.all(candidates.map(async (h) => ({
+            handle: h,
+            mtime: await lastModifiedOf(h)
+        })));
+        dated.sort((a, b) => b.mtime - a.mtime);
+        return dated.map(d => d.handle);
+    }
+
+    // groups: [{ type, label, files }]
+    function showFileChooser(groups) {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:#fff;color:#111;border-radius:12px;padding:20px 24px;max-width:540px;width:92%;max-height:80vh;overflow:auto;font-family:sans-serif;';
+
+            const title = document.createElement('h3');
+            title.textContent = 'Aynı türden birden fazla dosya bulundu';
+            title.style.margin = '0 0 6px';
+            const sub = document.createElement('div');
+            sub.textContent = 'En yeni tarihli dosya işaretlidir. Doğru olanları seçip "Yükle" deyin.';
+            sub.style.cssText = 'color:#666;font-size:13px;margin-bottom:14px;';
+            box.appendChild(title);
+            box.appendChild(sub);
+
+            groups.forEach((grp) => {
+                const gt = document.createElement('div');
+                gt.textContent = grp.label;
+                gt.style.cssText = 'font-weight:bold;margin:12px 0 6px;font-size:14px;';
+                box.appendChild(gt);
+
+                grp.files.forEach((handle, idx) => {
+                    const label = document.createElement('label');
+                    label.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px;';
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = 'pick-' + grp.type;
+                    radio.value = String(idx);
+                    if (idx === 0) radio.checked = true;
+                    const span = document.createElement('span');
+                    span.textContent = handle.name;
+                    label.appendChild(radio);
+                    label.appendChild(span);
+                    box.appendChild(label);
+                });
+            });
+
+            const btns = document.createElement('div');
+            btns.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:18px;';
+            const cancel = document.createElement('button');
+            cancel.textContent = 'Vazgeç';
+            cancel.style.cssText = 'padding:8px 14px;border:1px solid #ccc;border-radius:8px;background:#f2f2f2;cursor:pointer;font-size:14px;';
+            const ok = document.createElement('button');
+            ok.textContent = 'Yükle';
+            ok.style.cssText = 'padding:8px 18px;border:none;border-radius:8px;background:#c94c4c;color:#fff;cursor:pointer;font-size:14px;';
+            btns.appendChild(cancel);
+            btns.appendChild(ok);
+            box.appendChild(btns);
+
+            const close = (result) => {
+                document.body.removeChild(overlay);
+                resolve(result);
+            };
+            cancel.addEventListener('click', () => close(null));
+            ok.addEventListener('click', () => {
+                const picked = {};
+                groups.forEach((grp) => {
+                    const sel = box.querySelector('input[name="pick-' + grp.type + '"]:checked');
+                    picked[grp.type] = grp.files[Number(sel.value)];
+                });
+                close(picked);
+            });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+        });
+    }
+
     // ── TarMap dosya eşleştirme ───────────────────────────────────────
     async function autoLoadFromDownloads() {
         if (!window.showDirectoryPicker) {
@@ -113,23 +205,44 @@
 
         const name = (h) => h.name.toLowerCase();
 
-        // 1) Parçalı dosyaları ara: GML/XML + Parsel Excel/CSV (+ Çiftçi Excel)
-        const gmlHandle = files.find(h => /\.(gml|xml)$/.test(name(h)));
-        const csvHandle = files.find(h =>
+        // Adayları türe göre topla (en yeni önce olacak şekilde sıralanır)
+        const gmlCandidates = await sortNewest(files.filter(h => /\.(gml|xml)$/.test(name(h))));
+        const csvCandidates = await sortNewest(files.filter(h =>
             /\.(csv|xlsx|xls)$/.test(name(h)) &&
             !/ciftci|çiftçi/i.test(name(h))
-        );
-        const excelHandle = files.find(h =>
+        ));
+        const farmerCandidates = await sortNewest(files.filter(h =>
             /\.(xlsx|xls)$/.test(name(h)) &&
             /ciftci|çiftçi/i.test(name(h))
-        );
+        ));
 
-        if (gmlHandle && csvHandle) {
-            return await mergeAndLoad(gmlHandle, csvHandle, excelHandle);
+        if (gmlCandidates.length === 0 || csvCandidates.length === 0) {
+            console.log('ℹ️ Klasörde uygun TarMap verisi bulunamadı. Manuel yükleme kullanın.');
+            return false;
         }
 
-        console.log('ℹ️ Klasörde uygun TarMap verisi bulunamadı. Manuel yükleme kullanın.');
-        return false;
+        let gml = gmlCandidates[0];
+        let csv = csvCandidates[0];
+        let farmer = farmerCandidates[0] || null;
+
+        // Aynı türden birden fazla dosya varsa kullanıcıya sor
+        const ambiguous = [];
+        if (gmlCandidates.length > 1) ambiguous.push({ type: 'gml', label: 'GML / XML Harita Dosyası', files: gmlCandidates });
+        if (csvCandidates.length > 1) ambiguous.push({ type: 'csv', label: 'ÇKS Üretim Raporu (Parsel Excel/CSV)', files: csvCandidates });
+        if (farmerCandidates.length > 1) ambiguous.push({ type: 'farmer', label: 'Çiftçi Veritabanı Excel', files: farmerCandidates });
+
+        if (ambiguous.length > 0) {
+            const picked = await showFileChooser(ambiguous);
+            if (!picked) {
+                console.log('ℹ️ Dosya seçimi iptal edildi. Manuel yükleme kullanın.');
+                return false;
+            }
+            if (picked.gml) gml = picked.gml;
+            if (picked.csv) csv = picked.csv;
+            if (picked.farmer) farmer = picked.farmer;
+        }
+
+        return await mergeAndLoad(gml, csv, farmer);
     }
 
     // Parçalı dosyaları birleştir
