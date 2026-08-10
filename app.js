@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.96";
+const APP_VERSION = "2.97";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -288,9 +288,10 @@ function setupSettings() {
 
         try {
             masterRecords = await buildMasterData(updateMergeProgress);
-            updateMergeProgress(90, 'Harita çiziliyor...');
-            renderFromMasterData(masterRecords);
-            updateMergeProgress(100, 'Tamamlandı!');
+            updateMergeProgress(100, 'Veriler yüklendi!');
+            hideLoading();
+            if (progressArea) progressArea.classList.add('hidden');
+            alert(`✅ ${masterRecords.length} parsel yüklendi. Arama yaparak parselleri haritada görüntüleyin.`);
 
         } catch (err) {
             console.error(err);

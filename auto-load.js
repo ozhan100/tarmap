@@ -260,9 +260,8 @@
             };
 
             masterRecords = await buildMasterData(progressCb);
-            renderFromMasterData(masterRecords);
             hideLoading();
-            alert(`✅ Otomatik birleştirildi: ${masterRecords.length} parsel`);
+            alert(`✅ Otomatik birleştirildi: ${masterRecords.length} parsel. Arama yaparak parselleri haritada görüntüleyin.`);
             return true;
         } catch (err) {
             console.error('Otomatik birleştirme hatası:', err);
