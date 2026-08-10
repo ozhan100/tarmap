@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.94";
+const APP_VERSION = "2.95";
 
 const AUTH_CONFIG = {
     notificationEnabled: true
@@ -157,6 +157,7 @@ async function sendNotification(message) {
     if (!AUTH_CONFIG.notificationEnabled) return;
     try {
         await supabaseClient.rpc('bildirim_gonder', {
+            p_token: sessionStorage.getItem('tarmap_sessionToken'),
             p_uygulama_adi: 'TarMap',
             p_mesaj: message
         });
