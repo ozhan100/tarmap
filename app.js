@@ -1136,13 +1136,6 @@ function setupTools() {
         infoPanel.classList.add('hidden');
         highlightSelectedParsel(null);
     };
-    document.getElementById('logout-button').onclick = () => {
-        const token = sessionStorage.getItem('tarmap_sessionToken');
-        if (token) supabaseClient.rpc('oturum_kapat', { p_token: token }).catch(() => {});
-        sessionStorage.removeItem('tarmap_sessionToken');
-        sessionStorage.removeItem('tarmap_currentUser');
-        location.reload();
-    };
 
     // --- UI Panel Toggles (Header) ---
     const header = document.querySelector('header');
