@@ -43,6 +43,11 @@
                 <button id="login-button">Giriş Yap</button>
             </div>
             <div id="login-error" class="error-message">Hatalı şifre!</div>
+            <div class="kvkk-notice">
+                Bu uygulama kişisel verileri sunuculara aktarmaz. Excel/GML dosyaları
+                yalnızca cihazınızda işlenir ve tarayıcının geçici belleğinde tutulur;
+                sayfa kapatıldığında veriler silinir.
+            </div>
         </div>
     </div>
 
@@ -111,33 +116,16 @@
 
                 <!-- Sekmeler -->
                 <div class="settings-tabs">
-                    <button class="tab-btn active" data-tab="tab-load">📥 Hazır Veri Yükle</button>
-                    <button class="tab-btn" data-tab="tab-merge">⚙️ Veri Birleştir</button>
+                    <button class="tab-btn active" data-tab="tab-merge">⚙️ Veri Birleştir</button>
                 </div>
 
                 <div class="settings-body">
 
-                    <!-- TAB 1: Hazır JSON Yükle -->
-                    <div id="tab-load" class="tab-content">
+                    <!-- TAB 1: Veri Birleştir -->
+                    <div id="tab-merge" class="tab-content">
                         <p class="settings-hint">
-                            "Veri Birleştir" sekmesiyle daha önce oluşturulan
-                            <strong>TarmapVeri.json</strong> dosyasını seçip doğrudan haritaya yükleyin.
-                        </p>
-                        <div class="file-input-group highlight-group">
-                            <label>⭐ Birleşik TarMap JSON Dosyası</label>
-                            <input type="file" id="local-json" accept=".json">
-                        </div>
-                        <div class="settings-footer">
-                            <button id="load-json-btn" class="action-btn-large green">🚀 Haritaya Yükle</button>
-                        </div>
-                    </div>
-
-                    <!-- TAB 2: Veri Birleştir -->
-                    <div id="tab-merge" class="tab-content hidden">
-                        <p class="settings-hint">
-                            3 dosyayı seçin, <strong>Birleştir</strong> butonuna basın.
-                            Harita güncellenecek ve JSON dosyası indirilecek —
-                            bir dahaki sefere sadece o dosyayı yüklersiniz.
+                            GML ve Excel/CSV dosyalarını seçin, <strong>Birleştir</strong> butonuna basın.
+                            Harita otomatik olarak parselleri çizecek.
                         </p>
                         <div class="file-input-group">
                             <label>1. Tüm İlçe GML Dosyası</label>

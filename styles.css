@@ -148,6 +148,18 @@ button:hover {
     display: none;
 }
 
+.kvkk-notice {
+    margin-top: 1.25rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    text-align: center;
+}
+
 /* Settings Modal */
 .settings-card {
     background: var(--card-bg);

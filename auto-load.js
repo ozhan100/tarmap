@@ -1,9 +1,9 @@
 // =====================================================================
 //  TarMap Otomatik Veri Yükleme (auto-load.js)
 //  Amaç: Program açıldığında en son kullanılan klasörü (varsayılan
-//  "Downloads") tarar. Önce birleşik TarmapVeri.json arar; bulamazsa
-//  parçalı dosyaları (GML + Parsel Excel/CSV + Çiftçi Excel) bulur ve
-//  otomatik birleştirir. Hiçbir şey bulamazsa manuel akış korunur.
+//  "Downloads") tarar. Parçalı dosyaları (GML + Parsel Excel/CSV + Çiftçi
+//  Excel) bulur ve otomatik birleştirir. Hiçbir şey bulamazsa manuel akış
+//  korunur.
 //
 //  Not: Tarayıcı güvenliği nedeniyle arka planda otomatik tarama
 //  imkansızdır. İlk açılışta kullanıcıdan klasör izni istenir
@@ -113,13 +113,7 @@
 
         const name = (h) => h.name.toLowerCase();
 
-        // 1) ÖNCE birleşik JSON dosyasını ara (TarmapVeri.json)
-        const jsonHandle = files.find(h => name(h).endsWith('.json') && name(h).includes('tarmapveri'));
-        if (jsonHandle) {
-            return await loadCombinedJson(jsonHandle);
-        }
-
-        // 2) Parçalı dosyaları ara: GML/XML + Parsel Excel/CSV (+ Çiftçi Excel)
+        // 1) Parçalı dosyaları ara: GML/XML + Parsel Excel/CSV (+ Çiftçi Excel)
         const gmlHandle = files.find(h => /\.(gml|xml)$/.test(name(h)));
         const csvHandle = files.find(h =>
             /\.(csv|xlsx|xls)$/.test(name(h)) &&
@@ -135,27 +129,6 @@
         }
 
         console.log('ℹ️ Klasörde uygun TarMap verisi bulunamadı. Manuel yükleme kullanın.');
-        return false;
-    }
-
-    // Birleşik JSON'u yükle
-    async function loadCombinedJson(handle) {
-        try {
-            const file = await handle.getFile();
-            const text = await file.text();
-            const records = JSON.parse(text);
-
-            if (typeof renderFromMasterData === 'function') {
-                showLoading('Birleşik JSON yükleniyor...');
-                masterRecords = records;
-                renderFromMasterData(masterRecords);
-                hideLoading();
-                alert(`✅ Otomatik yüklendi: ${records.length} parsel (${handle.name})`);
-                return true;
-            }
-        } catch (err) {
-            console.error('JSON okunamadı:', err);
-        }
         return false;
     }
 

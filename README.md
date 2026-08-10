@@ -4,7 +4,7 @@ Bu uygulama, tarlalarınızın sınırlarını GML dosyalarından okuyarak Googl
 
 ## Ana Özellikler
 
-- **🔒 Güvenli Giriş**: KVKK uyumluluğu için şifreli giriş ekranı. (Varsayılan Şifre: `1234`)
+- **🔒 Güvenli Giriş**: Şifreli giriş ekranı ile yetkili kullanıcılar uygulamayı kullanabilir.
 - **🌍 Hibrit Harita**: Google Maps hibrit katmanı ile hem uydu görüntüsü hem de yol bilgilerini bir arada görün.
 - **🛰️ Canlı Konum**: Tarlada gezerken kendi konumunuzu mavi bir nokta olarak görün.
 - **📊 Parsel Bilgileri**: Herhangi bir parselin üzerine tıklayarak sahibini, ekili ürünü ve alan bilgilerini inceleyin.
@@ -12,9 +12,12 @@ Bu uygulama, tarlalarınızın sınırlarını GML dosyalarından okuyarak Googl
 
 ## Kurulum ve Çalıştırma
 
-1. **Google Maps API Anahtarı**: Uygulamayı ilk açtığınızda bir Google Maps API anahtarı girmeniz istenecektir. Bu anahtarı [Google Cloud Console](https://console.cloud.google.com/) üzerinden alabilirsiniz.
-2. **Dosya Yapısı**: `Halhalca.csv` ve `Halhalca.gml` dosyaları uygulamanın ana dizininde bulunmalıdır.
-3. **GitHub Pages**: Bu klasörü GitHub'a yükleyip GitHub Pages üzerinden yayınlayabilirsiniz.
+1. **Dosya Yükleme**: Uygulama, GML ve Excel/CSV dosyalarınızı cihazınızda işler. Dosyalar sunucuya yüklenmez.
+2. **GitHub Pages**: Bu klasörü GitHub'a yükleyip GitHub Pages üzerinden yayınlayabilirsiniz.
+
+## KVKK / Veri Güvenliği
+
+Bu uygulama kişisel verileri sunuculara aktarmaz. Excel/GML dosyaları yalnızca kullanıcının cihazında işlenir ve tarayıcının geçici belleğinde tutulur; sayfa kapatıldığında veriler silinir. Giriş ekranı yalnızca yetkilendirme amaçlıdır; uygulama kodu veya barındırma ortamında kişisel veri bulundurulmaz.
 
 ## Teknik Detaylar
 

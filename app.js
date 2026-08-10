@@ -232,9 +232,6 @@ function setupSettings() {
         });
     });
 
-    const jsonInput = document.getElementById('local-json');
-    const loadJsonBtn = document.getElementById('load-json-btn');
-
     // Renk Lejantı penceresi
     const legendModal = document.getElementById('legend-modal');
     const openLegendBtn = document.getElementById('open-legend-btn');
@@ -261,23 +258,6 @@ function setupSettings() {
     closeLegendBtn?.addEventListener('click', () => legendModal.classList.add('hidden'));
     legendModal?.addEventListener('click', (e) => {
         if (e.target === legendModal) legendModal.classList.add('hidden');
-    });
-
-    loadJsonBtn?.addEventListener('click', async () => {
-        const file = jsonInput?.files[0];
-        if (!file) { alert('Lütfen bir JSON dosyası seçin.'); return; }
-        modal.classList.add('hidden');
-        showLoading('JSON yükleniyor...');
-        setTimeout(async () => {
-            try {
-                const text = await file.text();
-                masterRecords = JSON.parse(text);
-                renderFromMasterData(masterRecords);
-                alert(`✅ ${masterRecords.length} parsel yüklendi.`);
-            } catch (err) {
-                alert('JSON okunamadı: ' + err.message);
-            } finally { hideLoading(); }
-        }, 80);
     });
 
     const gmlInput = document.getElementById('local-gml');
@@ -314,11 +294,6 @@ function setupSettings() {
             renderFromMasterData(masterRecords);
             updateMergeProgress(100, 'Tamamlandı!');
 
-            // JSON içeriğini showSavePrompt'a ver — hangi yöntemin kullanılacağına
-            // o fonksiyon karar verir (Web Share API veya blob link fallback)
-            const jsonStr = JSON.stringify(masterRecords);
-            showSavePrompt(jsonStr, masterRecords.length);
-
         } catch (err) {
             console.error(err);
             alert('İşlem hatası: ' + err.message);
@@ -338,105 +313,6 @@ function showLoading(msg) {
 }
 function hideLoading() {
     if (loadingOverlay) loadingOverlay.classList.add('hidden');
-}
-
-/**
- * İşlem tamamlandığında dosyayı kaydetmek için en uygun yöntemi seçer:
- *
- * 1. Web Share API (navigator.share + File)  → iOS/Android'in yerel paylaşım
- *    menüsünü açar (Dosyalar uygulaması, Google Drive, WhatsApp…).
- *    Büyük dosyalarda en güvenilir yöntem — blob URL oluşturulmaz.
- *
- * 2. Blob URL fallback  → Share API yoksa ekranda tıklanabilir bir link gösterir.
- *    Kullanıcı linke bastığında (gerçek kullanıcı eylemi) indirme başlar.
- */
-async function showSavePrompt(jsonContent, recordCount) {
-    const fileName = 'TarmapVeri.json';
-
-    // ── Yöntem 1: Web Share API (mobil için en ideal) ──────────────────────────
-    if (navigator.canShare) {
-        try {
-            const file = new File([jsonContent], fileName, { type: 'application/json' });
-            if (navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    title: 'TarmapVeri.json',
-                    text: `${recordCount} parsel verisi`,
-                    files: [file]
-                });
-                return; // Paylaşım başarılı, prompt'a gerek yok
-            }
-        } catch (shareErr) {
-            // Kullanıcı iptal etti veya Share API başarısız — fallback'e geç
-            if (shareErr.name === 'AbortError') return; // Kullanıcı kendi iptal etti
-            console.warn('Share API başarısız, blob link fallback kullanılıyor:', shareErr);
-        }
-    }
-
-    // ── Yöntem 2: Blob URL + kullanıcı tıklaması (fallback) ────────────────────
-    const blob = new Blob([jsonContent], { type: 'application/json' });
-    const downloadUrl = URL.createObjectURL(blob);
-
-    // Önceki prompt varsa kaldır
-    const existing = document.getElementById('save-prompt-overlay');
-    if (existing) existing.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'save-prompt-overlay';
-    overlay.style.cssText = `
-        position: fixed; inset: 0; z-index: 99999;
-        background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
-        display: flex; align-items: center; justify-content: center;
-        padding: 24px; box-sizing: border-box;
-    `;
-
-    overlay.innerHTML = `
-        <div style="
-            background: linear-gradient(135deg, #1e293b, #0f172a);
-            border: 1px solid rgba(46,204,113,0.4);
-            border-radius: 20px; padding: 32px 28px;
-            max-width: 360px; width: 100%; text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(46,204,113,0.15);
-        ">
-            <div style="font-size: 3rem; margin-bottom: 12px;">✅</div>
-            <div style="color: #2ecc71; font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">
-                İşlem Tamamlandı!
-            </div>
-            <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 6px; line-height: 1.5;">
-                <strong style="color:#fff;">${recordCount}</strong> parsel birleştirildi.
-            </div>
-            <div style="color: #64748b; font-size: 0.8rem; margin-bottom: 24px; line-height: 1.5;">
-                Aşağıdaki butona basarak dosyayı kaydedin.<br>
-                <em>(Dosya: ${fileName})</em>
-            </div>
-
-            <a id="save-json-link" href="${downloadUrl}" download="${fileName}" style="
-                display: block; width: 100%; box-sizing: border-box;
-                padding: 16px 20px;
-                background: linear-gradient(135deg, #16a34a, #22c55e);
-                color: white; font-size: 1.05rem; font-weight: 700;
-                border-radius: 14px; text-decoration: none;
-                box-shadow: 0 6px 20px rgba(34,197,94,0.35);
-                letter-spacing: 0.3px;
-            " ontouchstart="this.style.opacity='0.8'" ontouchend="this.style.opacity=''">
-                📥 TarmapVeri.json'u İndir
-            </a>
-
-            <button onclick="document.getElementById('save-prompt-overlay').remove();" style="
-                margin-top: 14px; background: none; border: none;
-                color: #64748b; font-size: 0.85rem; cursor: pointer; padding: 8px;
-            ">Kapat &nbsp;(harita zaten yüklendi)</button>
-        </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    document.getElementById('save-json-link').addEventListener('click', () => {
-        setTimeout(() => {
-            URL.revokeObjectURL(downloadUrl);
-            const el = document.getElementById('save-prompt-overlay');
-            if (el) el.remove();
-        }, 3000);
-    });
 }
 
 // Ürün gruplarına göre renklendirme.
