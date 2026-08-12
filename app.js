@@ -423,6 +423,12 @@ function renderFromMasterData(records, fitBounds = true) {
                 polygon.on('click', (e) => {
                     if (isMeasuringDist || isMeasuringArea) { addMeasurePoint(e.latlng); return; }
                     L.DomEvent.stopPropagation(e);
+                    // Aktif arama varsa tıklanan parselin arama listesindeki sırasını bul
+                    if (currentSearchResults.length > 0) {
+                        const key = `${rec.mahalle}-${rec.ada}-${rec.parsel}`;
+                        const idx = currentSearchResults.findIndex(r => `${r.mahalle}-${r.ada}-${r.parsel}` === key);
+                        if (idx >= 0) currentSearchIndex = idx;
+                    }
                     showParselInfo(feature, owner);
                 });
 
@@ -1168,10 +1174,10 @@ window.showSearchResult = function (index) {
         'Tarım Şekli': r.tarim_sekli,
         'Ekim Tarihi': r.ekim_tarihi,
         _phone: r.telefon
-    } : null, true);
+    } : null);
 };
 
-function showParselInfo(feature, owner, fromSearch = false) {
+function showParselInfo(feature, owner) {
     activeFeature = feature;
     currentOwnerData = owner;
     infoPanel.classList.remove('hidden');
@@ -1224,7 +1230,8 @@ function showParselInfo(feature, owner, fromSearch = false) {
         html += `<div style="text-align: center; padding: 20px 0; color: #94A3B8; font-style: italic;">Bu parsel için üretim kaydı bulunamadı.</div>`;
     }
 
-    if (fromSearch && currentSearchResults.length > 1) {
+    // Aktif arama sonucu varsa (birden fazla parsel) her zaman navigasyon göster
+    if (currentSearchResults.length > 1) {
         html += `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px; background: rgba(0,0,0,0.2); padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
                 <button onclick="showSearchResult(currentSearchIndex - 1)" style="padding: 8px 12px; font-weight:bold; cursor:pointer; border-radius:8px; background:linear-gradient(135deg, #3b82f6, #2563eb); color:white; border:none; box-shadow: 0 2px 8px rgba(37,99,235,0.3); font-size: 0.85rem;">&laquo; Önceki</button>
