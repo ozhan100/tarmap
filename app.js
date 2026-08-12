@@ -316,7 +316,7 @@ function hideLoading() {
 
 // Yükleme ekranını günceller: yüzde (0-100), aşama metni, opsiyonel sayaç
 function updateLoadingProgress(pct, stageMsg, counterMsg) {
-    pct = Math.max(0, Math.min(100, pct || 0));
+    pct = Math.round(Math.max(0, Math.min(100, pct || 0)));
 
     const textEl    = document.getElementById('loading-text');
     const pctEl     = document.getElementById('loading-pct');
@@ -403,9 +403,9 @@ async function renderFromMasterData(records, fitBounds = true) {
         const total = records.length;
 
         for (let i = 0; i < total; i++) {
-            if (i % 1000 === 0) {
+            if (i > 0 && i % 1000 === 0) {
                 updateLoadingProgress((i / total) * 100, 'Harita Geometrileri Çiziliyor...', `${i} / ${total}`);
-                await new Promise(r => setTimeout(r, 0));
+                await yieldToUI();
             }
             
             const rec = records[i];
@@ -495,8 +495,13 @@ function highlightSelectedParsel(feature) {
     });
 }
 
+// Tarayıcıya arayüzü güncellemesi için fırsat verir (Paint)
+const yieldToUI = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
 async function buildMasterData(progressCb) {
     progressCb?.(5, 'GML dosyası okunuyor...', '');
+    await yieldToUI();
+    
     gmlFeatures = [];
     if (selectedFiles.gml) {
         const text = await selectedFiles.gml.text();
@@ -555,7 +560,7 @@ async function buildMasterData(progressCb) {
         
         if (i % 2000 === 0) {
             progressCb?.(70 + (i / totalGml) * 10, 'GML ve Excel Eşleştiriliyor...', `${i} / ${totalGml}`);
-            await new Promise(r => setTimeout(r, 0));
+            await yieldToUI();
         }
 
         const fAda = feat.ada.toString().replace(/^0+/, '') || '0';
@@ -613,7 +618,7 @@ async function buildMasterData(progressCb) {
         
         if (i % 2000 === 0) {
             progressCb?.(80 + (i / totalParsel) * 5, 'Eşleşmeyen Parseller Ekleniyor...', `${i} / ${totalParsel}`);
-            await new Promise(r => setTimeout(r, 0));
+            await yieldToUI();
         }
 
         if (!p._matched) {
@@ -683,6 +688,9 @@ async function readExcelOrCsvSmart(file, keywordSets) {
 }
 
 async function parseGML(xmlString, progressCb) {
+    progressCb?.(5, 'GML Ayrıştırılıyor (Bu işlem kısa sürebilir)...', 'Lütfen Bekleyin');
+    await yieldToUI(); // DOMParser çok ağır olduğu için öncesinde UI'ın güncellenmesini bekle
+
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
     const members = xmlDoc.getElementsByTagNameNS("*", "featureMember");
@@ -692,8 +700,8 @@ async function parseGML(xmlString, progressCb) {
         const member = members[idx];
         
         if (idx % 1000 === 0) {
-            progressCb?.(5 + (idx / total) * 30, 'GML Geometrileri Okunuyor...', `${idx} / ${total}`);
-            await new Promise(r => setTimeout(r, 0));
+            progressCb?.(10 + (idx / total) * 25, 'GML Geometrileri Çıkarılıyor...', `${idx} / ${total}`);
+            await yieldToUI();
         }
 
         const layer = member.getElementsByTagNameNS("*", "Layer1")[0] || member.firstElementChild;
