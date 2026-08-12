@@ -281,11 +281,10 @@ function setupSettings() {
         const progressText = document.getElementById('merge-progress-text');
         if (progressArea) progressArea.classList.remove('hidden');
 
-        const updateMergeProgress = (pct, msg) => {
+        const updateMergeProgress = (pct, stageMsg, counterMsg) => {
             if (progressBar) progressBar.style.width = pct + '%';
-            if (progressText) progressText.textContent = msg;
-            const loadingTextEl = document.getElementById('loading-text');
-            if (loadingTextEl) loadingTextEl.textContent = msg;
+            if (progressText) progressText.textContent = stageMsg;
+            updateLoadingProgress(pct, stageMsg, counterMsg);
         };
 
         try {
@@ -380,7 +379,7 @@ function getProductGroup(urun) {
     return 'diger';
 }
 
-function renderFromMasterData(records, fitBounds = true) {
+async function renderFromMasterData(records, fitBounds = true) {
     try {
         // Mevcut poligonları temizle
         mapPolygons.forEach(p => map.removeLayer(p));
@@ -400,10 +399,20 @@ function renderFromMasterData(records, fitBounds = true) {
             groupByKey.get(key).add(getProductGroup(rec.urun));
         });
 
-        records.forEach(rec => {
+        showLoading('Harita hazırlanıyor...');
+        const total = records.length;
+
+        for (let i = 0; i < total; i++) {
+            if (i % 1000 === 0) {
+                updateLoadingProgress((i / total) * 100, 'Harita Geometrileri Çiziliyor...', `${i} / ${total}`);
+                await new Promise(r => setTimeout(r, 0));
+            }
+            
+            const rec = records[i];
+
             // Tek kayıttaki bozuk veri diğer parsellerin çizilmesini engellemesin
             try {
-                if (!rec.coords || !rec.coords.length) return;
+                if (!rec.coords || !rec.coords.length) continue;
 
                 const hasInfo = !!(rec.isletme || rec.urun);
 
@@ -459,7 +468,7 @@ function renderFromMasterData(records, fitBounds = true) {
             } catch (err) {
                 console.warn('Parsel çizilemedi:', rec.mahalle, rec.ada, rec.parsel, err);
             }
-        });
+        }
 
         if (fitBounds && mapPolygons.length > 0) {
             map.fitBounds(bounds, { animate: false });
@@ -487,31 +496,33 @@ function highlightSelectedParsel(feature) {
 }
 
 async function buildMasterData(progressCb) {
-    progressCb?.(5, 'GML dosyası okunuyor...');
+    progressCb?.(5, 'GML dosyası okunuyor...', '');
     gmlFeatures = [];
     if (selectedFiles.gml) {
         const text = await selectedFiles.gml.text();
-        parseGML(text);
+        await parseGML(text, progressCb);
     }
-    progressCb?.(35, `${gmlFeatures.length} parsel geometrisi okundu.`);
+    progressCb?.(35, `${gmlFeatures.length} parsel geometrisi okundu.`, '');
 
     parselData = [];
     if (selectedFiles.csv) {
+        progressCb?.(35, 'Parsel Excel/CSV dosyası okunuyor...', '');
         parselData = await readExcelOrCsvSmart(
             selectedFiles.csv,
             [['ADA', 'PARSEL'], ['ÜRÜN', 'URUN'], ['İŞLETME', 'ISLETME']]
         );
     }
-    progressCb?.(55, `${parselData.length} parsel kaydı okundu.`);
+    progressCb?.(55, `${parselData.length} parsel kaydı okundu.`, '');
 
     farmerData = [];
     if (selectedFiles.excel) {
+        progressCb?.(55, 'ÇKS Çiftçi Veritabanı okunuyor...', '');
         farmerData = await readExcelOrCsvSmart(
             selectedFiles.excel,
             [['TC', 'TELEFON'], ['ADI', 'SOYAD'], ['UNVAN']]
         );
     }
-    progressCb?.(70, 'Veriler eşleştiriliyor...');
+    progressCb?.(70, 'Veriler eşleştiriliyor...', '');
 
     const farmerByTC = new Map();
     const farmerByName = new Map();
@@ -537,7 +548,16 @@ async function buildMasterData(progressCb) {
         parselMap.get(key).push(p);
     });
 
-    const records = gmlFeatures.flatMap(feat => {
+    const records = [];
+    const totalGml = gmlFeatures.length;
+    for (let i = 0; i < totalGml; i++) {
+        const feat = gmlFeatures[i];
+        
+        if (i % 2000 === 0) {
+            progressCb?.(70 + (i / totalGml) * 10, 'GML ve Excel Eşleştiriliyor...', `${i} / ${totalGml}`);
+            await new Promise(r => setTimeout(r, 0));
+        }
+
         const fAda = feat.ada.toString().replace(/^0+/, '') || '0';
         const fParsel = feat.parsel.toString().replace(/^0+/, '') || '0';
         const fMahalle = getCleanMahalle(feat.mahalle);
@@ -545,7 +565,7 @@ async function buildMasterData(progressCb) {
         const pList = parselMap.get(`${fMahalle}-${fAda}-${fParsel}`);
 
         if (!pList || pList.length === 0) {
-            return [{
+            records.push({
                 ada: feat.ada,
                 parsel: feat.parsel,
                 mahalle: feat.mahalle,
@@ -557,10 +577,11 @@ async function buildMasterData(progressCb) {
                 tarim_sekli: '',
                 ekim_tarihi: '',
                 telefon: ''
-            }];
+            });
+            continue;
         }
 
-        return pList.map(p => {
+        pList.forEach(p => {
             p._matched = true;
             const pTC = (p['TC'] || p['TC / Vergi No'] || '').trim();
             const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
@@ -568,7 +589,7 @@ async function buildMasterData(progressCb) {
             const phone = farmer['TELEFON'] || farmer['Telefon'] || farmer['Cep Tel'] || farmer['GSM'] || farmer['CEP TEL'] || '';
             const adres = farmer['ADRES'] || farmer['Adres'] || farmer['Adresi'] || p['Köy'] || p['KÖY'] || p['Mahalle'] || p['MAHALLE'] || p['Köyü'] || '';
 
-            return {
+            records.push({
                 ada: feat.ada,
                 parsel: feat.parsel,
                 mahalle: feat.mahalle,
@@ -581,13 +602,20 @@ async function buildMasterData(progressCb) {
                 ekim_tarihi: p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
                 telefon: phone,
                 adres: adres
-            };
+            });
         });
-    });
+    }
 
     // Eşleşmeyen (GML'de harita karşılığı olmayan) Excel parsellerini ekle
-    // Böylece haritada çizilemeseler bile arama ve rapor ekranlarında görünürler.
-    parselData.forEach(p => {
+    const totalParsel = parselData.length;
+    for (let i = 0; i < totalParsel; i++) {
+        const p = parselData[i];
+        
+        if (i % 2000 === 0) {
+            progressCb?.(80 + (i / totalParsel) * 5, 'Eşleşmeyen Parseller Ekleniyor...', `${i} / ${totalParsel}`);
+            await new Promise(r => setTimeout(r, 0));
+        }
+
         if (!p._matched) {
             const pTC = (p['TC'] || p['TC / Vergi No'] || '').trim();
             const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
@@ -610,9 +638,9 @@ async function buildMasterData(progressCb) {
                 adres: farmer['ADRES'] || farmer['Adres'] || farmer['Adresi'] || rawMahalle
             });
         }
-    });
+    }
 
-    progressCb?.(88, `${records.length} kayıt birleştirildi.`);
+    progressCb?.(85, `${records.length} kayıt birleştirildi.`, '');
     return records;
 }
 
@@ -654,12 +682,20 @@ async function readExcelOrCsvSmart(file, keywordSets) {
     }
 }
 
-function parseGML(xmlString) {
+async function parseGML(xmlString, progressCb) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
     const members = xmlDoc.getElementsByTagNameNS("*", "featureMember");
+    const total = members.length;
 
-    for (let member of members) {
+    for (let idx = 0; idx < total; idx++) {
+        const member = members[idx];
+        
+        if (idx % 1000 === 0) {
+            progressCb?.(5 + (idx / total) * 30, 'GML Geometrileri Okunuyor...', `${idx} / ${total}`);
+            await new Promise(r => setTimeout(r, 0));
+        }
+
         const layer = member.getElementsByTagNameNS("*", "Layer1")[0] || member.firstElementChild;
         if (!layer) continue;
 
