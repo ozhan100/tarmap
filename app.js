@@ -169,17 +169,6 @@ function showApp() {
     setTimeout(() => {
         if (map) map.invalidateSize();
     }, 500);
-
-    // Otomatik veri yükleme: girişten hemen sonra Downloads klasörünü tara
-    setTimeout(async () => {
-        try {
-            if (typeof window.autoLoadFromDownloads === 'function') {
-                await window.autoLoadFromDownloads();
-            }
-        } catch (err) {
-            console.warn('Otomatik veri yükleme başarısız:', err);
-        }
-    }, 800);
 }
 
 async function initLeafletMap() {
@@ -201,11 +190,24 @@ async function initLeafletMap() {
     setupSearch();
     setupSettings();
 
+    // Yükleme ekranını göster - autoLoadFromDownloads tamamlanana kadar açık kalsın
+    showLoading('Harita hazırlanıyor...');
+
     try {
         await loadData();
         startLocationTracking();
+        
+        // Otomatik veri yükleme (Downloads'tan) - await ile bekle
+        try {
+            if (typeof window.autoLoadFromDownloads === 'function') {
+                await window.autoLoadFromDownloads();
+            }
+        } catch (err) {
+            console.warn('Otomatik veri yükleme başarısız:', err);
+        }
     } finally {
-        loadingOverlay.classList.add('hidden');
+        // Yükleme her durumda kapanır (auto-load biterse veya hata olursa)
+        hideLoading();
     }
 }
 
@@ -315,6 +317,8 @@ function hideLoading() {
 }
 
 // Yükleme ekranını günceller: yüzde (0-100), aşama metni, opsiyonel sayaç
+// Yükleme ekranını günceller: yüzde (0-100), aşama metni, opsiyonel sayaç
+// Global erişim için window'a da atanıyor (auto-load.js kullanır)
 function updateLoadingProgress(pct, stageMsg, counterMsg) {
     pct = Math.round(Math.max(0, Math.min(100, pct || 0)));
 
@@ -336,6 +340,7 @@ function updateLoadingProgress(pct, stageMsg, counterMsg) {
         ringEl.style.strokeDashoffset = offset;
     }
 }
+window.updateLoadingProgress = updateLoadingProgress;
 
 // Ürün gruplarına göre renklendirme.
 // Uydu görüntüsündeki yeşil tarla/orman tonlarıyla karışmaması için

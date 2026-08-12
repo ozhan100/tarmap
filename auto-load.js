@@ -254,9 +254,13 @@
 
             showLoading('Veriler birleştiriliyor...');
 
-            const progressCb = (pct, msg) => {
-                const loadingTextEl = document.getElementById('loading-text');
-                if (loadingTextEl) loadingTextEl.textContent = msg;
+            const progressCb = (pct, msg, counterMsg) => {
+                if (window.updateLoadingProgress) {
+                    window.updateLoadingProgress(pct, msg, counterMsg);
+                } else {
+                    const loadingTextEl = document.getElementById('loading-text');
+                    if (loadingTextEl) loadingTextEl.textContent = msg;
+                }
             };
 
             masterRecords = await buildMasterData(progressCb);
@@ -275,6 +279,7 @@
         const t = document.getElementById('loading-text');
         if (t) t.textContent = msg || 'Yükleniyor...';
         if (el) el.classList.remove('hidden');
+        if (window.updateLoadingProgress) window.updateLoadingProgress(0, msg || 'Yükleniyor...', '');
     }
     function hideLoading() {
         const el = document.getElementById('loading-overlay');
