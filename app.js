@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.97";
+const APP_VERSION = "2.98";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -786,139 +786,65 @@ function findNearbyParcels(userLat, userLng, radiusKm = NEARBY_RADIUS_KM) {
     return nearby;
 }
 
-// Display nearby parcels on map with labels
+// Yakındaki parselleri normal arama gibi currentSearchResults'e yükle ve göster
 function displayNearbyParcels(parcels) {
-    clearNearbyParcels();
-    
     if (!parcels.length) {
         alert('1 km yarıçapında parsel bulunamadı.');
         return;
     }
-    
-    nearbyParcelsLayer = L.layerGroup().addTo(map);
-    nearbyParcelsLabels = [];
-    
-    const bounds = L.latLngBounds();
-    
-    parcels.forEach(p => {
-        if (!p.coords || !p.coords.length) return;
-        
-        // Draw polygon with highlight style
-        const polygon = L.polygon(p.coords, {
-            color: '#FFD700', // Gold color for nearby
-            weight: 3,
-            opacity: 0.9,
-            fillColor: '#FFD700',
-            fillOpacity: 0.25
-        }).addTo(nearbyParcelsLayer);
-        
-        // Add label with owner + parcel no + product
-        const centroid = getPolygonCentroid(p.coords);
-        if (centroid) {
-            const labelText = [
-                p.isletme || 'Bilinmeyen',
-                `Ada/Parsel: ${p.ada}/${p.parsel}`,
-                p.urun || 'Ürün yok'
-            ].join('\n');
-            
-            const label = L.marker(centroid, {
-                icon: L.divIcon({
-                    className: 'nearby-parcel-label',
-                    html: `<div style="background:rgba(0,0,0,0.85);color:#FFD700;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:bold;white-space:nowrap;border:1px solid #FFD700;box-shadow:0 2px 6px rgba(0,0,0,0.5);">${labelText.replace(/\n/g, '<br>')}</div>`,
-                    iconSize: [200, 40],
-                    iconAnchor: [100, 20]
-                })
-            }).addTo(nearbyParcelsLayer);
-            
-            nearbyParcelsLabels.push(label);
-        }
-        
-        bounds.extend(polygon.getBounds());
-    });
-    
-    // Fit map to show all nearby parcels
-    if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
-    }
-    
-    // Show results toast
-    showNearbyToast(parcels);
+
+    // Normal arama gibi sonuçları global state'e aktar
+    currentSearchResults = parcels;
+    currentSearchIndex = 0;
+    isSearchActive = true;
+
+    // Haritada normal arama poligonları olarak çiz (kutucuksuz)
+    renderFromMasterData(currentSearchResults, true);
+
+    // İlk sonucu info panelinde göster
+    showSearchResult(0);
 }
 
-// Show toast with nearby parcels list
-function showNearbyToast(parcels) {
-    const toast = document.getElementById('measure-info');
-    if (!toast) return;
-    
-    const count = parcels.length;
-    const listHtml = parcels.slice(0, 8).map(p => 
-        `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1);font-size:12px;">
-            <b>${p.isletme || 'Bilinmeyen'}</b> - ${p.ada}/${p.parsel} - ${p.urun || '-'} 
-            <span style="color:#FFD700;float:right;">${p.distance.toFixed(2)} km</span>
-        </div>`
-    ).join('');
-    
-    toast.innerHTML = `
-        <div style="margin-bottom:8px;font-weight:bold;color:#FFD700;">🔍 Yakındaki Parseller (${count} adet)</div>
-        <div style="max-height:200px;overflow-y:auto;">${listHtml}</div>
-        ${count > 8 ? `<div style="font-size:11px;color:#aaa;margin-top:4px;">... ve ${count - 8} parsel daha</div>` : ''}
-        <button id="clear-nearby" style="margin-top:8px;padding:6px 12px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;">Kapat</button>
-    `;
-    toast.classList.remove('hidden');
-    
-    document.getElementById('clear-nearby').onclick = clearNearbyParcels;
-}
-
-// Clear nearby parcels from map
+// Yakındaki parselleri temizle
 function clearNearbyParcels() {
     if (nearbyParcelsLayer) {
         map.removeLayer(nearbyParcelsLayer);
         nearbyParcelsLayer = null;
     }
     nearbyParcelsLabels = [];
-    
-    const toast = document.getElementById('measure-info');
-    if (toast) {
-        toast.classList.add('hidden');
-        toast.innerHTML = '';
-    }
 }
 
-// Main function: show nearby parcels
+// Ana fonksiyon: yakındaki parselleri bul ve normal arama gibi göster
 async function showNearbyParcels() {
     const btn = document.getElementById('nearby-parcels');
-    
-    // If already showing, clear
-    if (nearbyParcelsLayer) {
-        clearNearbyParcels();
-        btn.title = 'Yakındaki Parseller (1km)';
-        btn.style.background = '';
+
+    if (!masterRecords || !masterRecords.length) {
+        alert('Önce veri yükleyin (⚙️ Ayarlar menüsü).');
         return;
     }
-    
+
     if (!userMarker) {
         alert('Önce konumunuzu alın (📍 butonuna basın).');
         startLocationTracking(true);
         return;
     }
-    
+
     const userLatLng = userMarker.getLatLng();
     btn.innerText = '⏳';
     btn.disabled = true;
-    
+
     try {
         const nearby = findNearbyParcels(userLatLng.lat, userLatLng.lng);
         displayNearbyParcels(nearby);
-        
-        btn.innerText = '✅';
-        btn.title = 'Yakındaki parseller gösteriliyor - Kapatmak için tekrar tıklayın';
-        btn.style.background = '#27ae60';
+        btn.innerText = '🔍';
+        btn.title = 'Yakındaki Parseller (1km)';
+        btn.style.background = '';
     } catch (err) {
         console.error(err);
         alert('Hata: ' + err.message);
         btn.innerText = '🔍';
+    } finally {
         btn.disabled = false;
-        btn.style.background = '';
     }
 }
 
@@ -1315,7 +1241,12 @@ function setupTools() {
     closePanelBtn.onclick = () => {
         infoPanel.classList.add('hidden');
         highlightSelectedParsel(null);
+        activeFeature = null;
+        currentOwnerData = null;
     };
+
+    // Haritada boş yere tıklamak paneli KAPATMAZ
+    // (Kullanıcı haritaya tıklayarak parsele ulaşır, boş tık görmezden gelinir)
 
     // --- UI Panel Toggles (Header) ---
     const header = document.querySelector('header');
