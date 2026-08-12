@@ -89,9 +89,21 @@
             <button id="clear-measure">Temizle</button>
         </div>
 
-        <div id="loading-overlay" class="loading-overlay">
-            <div class="spinner"></div>
-            <p id="loading-text">Veriler yükleniyor...</p>
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-card">
+                <div class="loading-spinner-wrap">
+                    <svg class="loading-ring" viewBox="0 0 60 60">
+                        <circle class="loading-ring-bg" cx="30" cy="30" r="26"/>
+                        <circle class="loading-ring-fill" id="loading-ring-fill" cx="30" cy="30" r="26"/>
+                    </svg>
+                    <span class="loading-pct" id="loading-pct">0%</span>
+                </div>
+                <div class="loading-stage" id="loading-text">Hazırlanıyor...</div>
+                <div class="loading-counter" id="loading-counter"></div>
+                <div class="loading-bar-wrap">
+                    <div class="loading-bar" id="loading-bar"></div>
+                </div>
+            </div>
         </div>
 
         <div class="search-container ui-hidden" id="search-container">

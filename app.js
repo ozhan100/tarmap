@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.98";
+const APP_VERSION = "2.99";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -307,13 +307,35 @@ function setupSettings() {
 
 function showLoading(msg) {
     if (loadingOverlay) {
-        const t = document.getElementById('loading-text');
-        if (t) t.textContent = msg || 'Yükleniyor...';
+        updateLoadingProgress(0, msg || 'Hazırlanıyor...');
         loadingOverlay.classList.remove('hidden');
     }
 }
 function hideLoading() {
     if (loadingOverlay) loadingOverlay.classList.add('hidden');
+}
+
+// Yükleme ekranını günceller: yüzde (0-100), aşama metni, opsiyonel sayaç
+function updateLoadingProgress(pct, stageMsg, counterMsg) {
+    pct = Math.max(0, Math.min(100, pct || 0));
+
+    const textEl    = document.getElementById('loading-text');
+    const pctEl     = document.getElementById('loading-pct');
+    const ringEl    = document.getElementById('loading-ring-fill');
+    const barEl     = document.getElementById('loading-bar');
+    const counterEl = document.getElementById('loading-counter');
+
+    if (textEl)    textEl.textContent    = stageMsg || '';
+    if (pctEl)     pctEl.textContent     = pct + '%';
+    if (barEl)     barEl.style.width     = pct + '%';
+    if (counterEl) counterEl.textContent = counterMsg || '';
+
+    // SVG halkası: stroke-dashoffset = circumference × (1 - pct/100)
+    // Çevre = 2π × 26 ≈ 163.36
+    if (ringEl) {
+        const offset = 163.36 * (1 - pct / 100);
+        ringEl.style.strokeDashoffset = offset;
+    }
 }
 
 // Ürün gruplarına göre renklendirme.
