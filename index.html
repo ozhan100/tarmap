@@ -48,6 +48,7 @@
                 yalnızca cihazınızda işlenir ve tarayıcının geçici belleğinde tutulur;
                 sayfa kapatıldığında veriler silinir.
             </div>
+            <button id="force-update-btn" onclick="forceUpdate()" title="Uygulamayı güncelle ve cache'i temizle">🔄 Güncelle</button>
         </div>
     </div>
 
@@ -225,6 +226,27 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auto-load.js?v=2.98"></script>
     <script src="app.js?v=2.98"></script>
+    <script>
+        async function forceUpdate() {
+            const btn = document.getElementById('force-update-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Güncelleniyor...';
+            try {
+                // Tüm service worker kayıtlarını kaldır
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r => r.unregister()));
+                }
+                // Tüm cache'leri sil
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                }
+            } catch(e) { /* sessiz geç */ }
+            // Zorla yenile
+            location.reload(true);
+        }
+    </script>
 </body>
 
 </html>

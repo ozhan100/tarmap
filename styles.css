@@ -160,6 +160,34 @@ button:hover {
     text-align: center;
 }
 
+#force-update-btn {
+    margin-top: 0.75rem;
+    width: 100%;
+    padding: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-muted);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+}
+
+#force-update-btn:hover {
+    background: rgba(241, 196, 15, 0.15);
+    border-color: rgba(241, 196, 15, 0.4);
+    color: var(--accent);
+    transform: none;
+}
+
+#force-update-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 /* Settings Modal */
 .settings-card {
     background: var(--card-bg);
