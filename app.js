@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "2.99";
+const APP_VERSION = "3.00";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -511,23 +511,25 @@ async function buildMasterData(progressCb) {
 
     parselData = [];
     if (selectedFiles.csv) {
-        progressCb?.(35, 'Parsel Excel/CSV dosyası okunuyor...', '');
         parselData = await readExcelOrCsvSmart(
             selectedFiles.csv,
-            [['ADA', 'PARSEL'], ['ÜRÜN', 'URUN'], ['İŞLETME', 'ISLETME']]
+            [['ADA', 'PARSEL'], ['ÜRÜN', 'URUN'], ['İŞLETME', 'ISLETME']],
+            progressCb, 35, 15, "ÇKS Parsel"
         );
     }
-    progressCb?.(55, `${parselData.length} parsel kaydı okundu.`, '');
+    progressCb?.(50, `ÇKS Parsel kayıtları hazırlandı.`, `${parselData.length} kayıt`);
+    await yieldToUI();
 
     farmerData = [];
     if (selectedFiles.excel) {
-        progressCb?.(55, 'ÇKS Çiftçi Veritabanı okunuyor...', '');
         farmerData = await readExcelOrCsvSmart(
             selectedFiles.excel,
-            [['TC', 'TELEFON'], ['ADI', 'SOYAD'], ['UNVAN']]
+            [['TC', 'TELEFON'], ['ADI', 'SOYAD'], ['UNVAN']],
+            progressCb, 50, 15, "Çiftçi Veritabanı"
         );
     }
-    progressCb?.(70, 'Veriler eşleştiriliyor...', '');
+    progressCb?.(65, 'Veriler birleştiriliyor...', 'Bellek hazırlanıyor');
+    await yieldToUI();
 
     const farmerByTC = new Map();
     const farmerByName = new Map();
@@ -559,7 +561,7 @@ async function buildMasterData(progressCb) {
         const feat = gmlFeatures[i];
         
         if (i % 2000 === 0) {
-            progressCb?.(70 + (i / totalGml) * 10, 'GML ve Excel Eşleştiriliyor...', `${i} / ${totalGml}`);
+            progressCb?.(65 + (i / totalGml) * 15, 'Parseller ve ÇKS Kayıtları Eşleştiriliyor...', `${i} / ${totalGml}`);
             await yieldToUI();
         }
 
@@ -613,15 +615,17 @@ async function buildMasterData(progressCb) {
 
     // Eşleşmeyen (GML'de harita karşılığı olmayan) Excel parsellerini ekle
     const totalParsel = parselData.length;
+    let unmatchCount = 0;
     for (let i = 0; i < totalParsel; i++) {
         const p = parselData[i];
         
         if (i % 2000 === 0) {
-            progressCb?.(80 + (i / totalParsel) * 5, 'Eşleşmeyen Parseller Ekleniyor...', `${i} / ${totalParsel}`);
+            progressCb?.(80 + (i / totalParsel) * 15, 'Çiftçi Telefonları ve İşletme Verileri İşleniyor...', `${i} / ${totalParsel}`);
             await yieldToUI();
         }
 
         if (!p._matched) {
+            unmatchCount++;
             const pTC = (p['TC'] || p['TC / Vergi No'] || '').trim();
             const pName = normalizeText(p['İşletme Adı'] || p['İşletme'] || p['Ad Soyad'] || p['Sahibi'] || '');
             const farmer = (pTC && farmerByTC.get(pTC)) || (pName && farmerByName.get(pName)) || {};
@@ -645,16 +649,25 @@ async function buildMasterData(progressCb) {
         }
     }
 
-    progressCb?.(85, `${records.length} kayıt birleştirildi.`, '');
+    progressCb?.(95, `Son veri yapısı hazırlandı.`, `${records.length} kayıt birleştirildi`);
+    await yieldToUI();
     return records;
 }
 
-async function readExcelOrCsvSmart(file, keywordSets) {
+async function readExcelOrCsvSmart(file, keywordSets, progressCb = null, basePct = 0, stepPct = 0, msgName = '') {
     const name = file.name.toLowerCase();
+    
     if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        progressCb?.(basePct, `${msgName} Excel dosyası okunuyor... (Bu işlem dosya büyüklüğüne göre biraz sürebilir)`, 'Lütfen Bekleyin');
+        await yieldToUI();
+
         const data = await file.arrayBuffer();
+        // Bu işlem tek parça ve senkron olduğu için yüzdesi yapay artırılamaz
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+        progressCb?.(basePct + (stepPct * 0.3), `${msgName} Excel satırları ayrıştırılıyor...`, 'Lütfen Bekleyin');
+        await yieldToUI();
 
         let rangeIdx = 0;
         const primaryKws = keywordSets[0];
@@ -664,26 +677,55 @@ async function readExcelOrCsvSmart(file, keywordSets) {
             const allFound = primaryKws.every(kw => rowUpper.some(cell => cell.includes(kw)));
             if (allFound) { rangeIdx = i; break; }
         }
+        
         const jsonData = XLSX.utils.sheet_to_json(sheet, { range: rangeIdx });
-        return jsonData.map(row => {
+        
+        progressCb?.(basePct + (stepPct * 0.5), `${msgName} Excel satırları temizleniyor...`, `${jsonData.length} kayıt`);
+        await yieldToUI();
+
+        const total = jsonData.length;
+        const result = [];
+        for (let i = 0; i < total; i++) {
+            if (i > 0 && i % 2000 === 0) {
+                progressCb?.(basePct + (stepPct * 0.5) + ((i / total) * (stepPct * 0.5)), `${msgName} Kayıtları Temizleniyor...`, `${i} / ${total}`);
+                await yieldToUI();
+            }
+            const row = jsonData[i];
             const out = {};
             for (const k in row) {
                 const clean = k.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
                 out[clean] = row[k] !== undefined && row[k] !== null ? row[k].toString().trim() : '';
             }
-            return out;
-        });
+            result.push(out);
+        }
+        return result;
+
     } else {
+        progressCb?.(basePct, `${msgName} CSV dosyası okunuyor...`, 'Lütfen Bekleyin');
+        await yieldToUI();
+
         const text = await file.text();
         const parsed = Papa.parse(text, { header: true, delimiter: ';', skipEmptyLines: true });
-        return parsed.data.map(row => {
+        const total = parsed.data.length;
+        
+        progressCb?.(basePct + (stepPct * 0.5), `${msgName} CSV satırları temizleniyor...`, `${total} kayıt`);
+        await yieldToUI();
+
+        const result = [];
+        for (let i = 0; i < total; i++) {
+            if (i > 0 && i % 2000 === 0) {
+                progressCb?.(basePct + (stepPct * 0.5) + ((i / total) * (stepPct * 0.5)), `${msgName} Kayıtları Temizleniyor...`, `${i} / ${total}`);
+                await yieldToUI();
+            }
+            const row = parsed.data[i];
             const out = {};
             for (const k in row) {
                 const clean = k.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
                 out[clean] = row[k] ? row[k].toString().trim() : '';
             }
-            return out;
-        });
+            result.push(out);
+        }
+        return result;
     }
 }
 
