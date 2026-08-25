@@ -1035,7 +1035,8 @@ function parseFieldQuery(rawQuery) {
     const tokens = rawQuery.split(/\s+/).filter(Boolean);
 
     const isFieldName = (t) => {
-        const clean = normalizeText(t).replace(/[:"",.]/g, '');
+        const prefix = t.includes(':') ? t.split(':')[0] : t;
+        const clean = normalizeText(prefix).replace(/[:"",.]/g, '');
         return Object.values(FIELD_ALIASES).some(aliases => aliases.includes(clean));
     };
 
@@ -1043,7 +1044,8 @@ function parseFieldQuery(rawQuery) {
     while (i < tokens.length) {
         const token = tokens[i];
         const lower = normalizeText(token);
-        const cleanTok = lower.replace(/[:"",.]/g, '');
+        const prefix = lower.includes(':') ? lower.split(':')[0] : lower;
+        const cleanTok = prefix.replace(/[:"",.]/g, '');
 
         let matchedField = null;
         for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
@@ -1162,6 +1164,17 @@ function setupSearch() {
         let candidates = masterRecords;
         if (parsed.mahalle.length) {
             candidates = filterByMahalle(candidates, parsed.mahalle);
+        } else if (otherTerms.length > 0) {
+            // Prefiks yoksa bile otherTerms içinde köy adı olabilir.
+            // Tam köy adı eşleşmesi varsa adayları daralt (kısmi eşleşmeye düşme).
+            const cleanOtherTerms = otherTerms.map(t => getCleanMahalle(t)).filter(Boolean);
+            if (cleanOtherTerms.length) {
+                const mahalleExact = candidates.filter(r => {
+                    const mc = getCleanMahalle(r.mahalle || '');
+                    return mc && cleanOtherTerms.some(t => t === mc);
+                });
+                if (mahalleExact.length > 0) candidates = mahalleExact;
+            }
         }
 
         currentSearchResults = candidates.filter(r => {
