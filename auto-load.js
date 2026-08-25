@@ -159,7 +159,7 @@
             btns.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:18px;';
             const cancel = document.createElement('button');
             cancel.textContent = 'Vazgeç';
-            cancel.style.cssText = 'padding:8px 14px;border:1px solid #ccc;border-radius:8px;background:#f2f2f2;cursor:pointer;font-size:14px;';
+            cancel.style.cssText = 'padding:8px 14px;border:1px solid #ccc;border-radius:8px;background:#f2f2f2;color:#333;cursor:pointer;font-size:14px;';
             const ok = document.createElement('button');
             ok.textContent = 'Yükle';
             ok.style.cssText = 'padding:8px 18px;border:none;border-radius:8px;background:#c94c4c;color:#fff;cursor:pointer;font-size:14px;';
