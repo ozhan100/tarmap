@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.02";
+const APP_VERSION = "3.03";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -609,7 +609,7 @@ async function buildMasterData(progressCb) {
                 isletme: p['İşletme Adı'] || p['İşletme'] || p['ADI SOYADI'] || p['AD SOYAD'] || '',
                 tc: pTC,
                 urun: p['Ürün'] || p['ÜRÜN'] || '',
-                alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
+                alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Ekili Alan (da)'] || p['Ekili Alan'] || p['Alan'] || p['Alanı'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
                 tarim_sekli: p['Tarım Şekli'] || '',
                 ekim_tarihi: p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
                 telefon: phone,
@@ -645,7 +645,7 @@ async function buildMasterData(progressCb) {
                 isletme: p['İşletme Adı'] || p['İşletme'] || p['ADI SOYADI'] || p['AD SOYAD'] || '',
                 tc: pTC,
                 urun: p['Ürün'] || p['ÜRÜN'] || '',
-                alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Alan'] || p['Alanı'] || p['Ekili Alan'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
+                alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Ekili Alan (da)'] || p['Ekili Alan'] || p['Alan'] || p['Alanı'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
                 tarim_sekli: p['Tarım Şekli'] || '',
                 ekim_tarihi: p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
                 telefon: phone,
