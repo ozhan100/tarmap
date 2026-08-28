@@ -1,17 +1,12 @@
-# Tüm dosyaları ve klasörleri görmezden gel
 /*
-
-# Sadece istediğimiz dosyaların takibine izin ver
 !index.html
 !app.js
-!auto-load.js
 !styles.css
 !manifest.json
 !sw.js
-!icons/
-!icons/*
-!background.png
-!README.md
-
-# .gitignore dosyasının kendisini de takip et
+!admin-panel.js
+!supabase/
+!supabase/functions/
+!supabase/functions/admin-yonetim/
+!supabase/functions/admin-yonetim/index.ts
 !.gitignore

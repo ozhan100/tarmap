@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.03";
+const APP_VERSION = "3.04";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -165,6 +165,14 @@ async function handleLogin() {
 function showApp() {
     loginScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
+    if (typeof window.initAdminPanel === 'function') {
+        window.initAdminPanel({
+            appName: APP_NAME,
+            supabaseUrl: SUPABASE_URL,
+            tokenStorageKey: 'tarmap_sessionToken',
+            userName: currentUser
+        });
+    }
     initLeafletMap();
     setTimeout(() => {
         if (map) map.invalidateSize();

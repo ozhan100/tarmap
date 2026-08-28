@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="TarMap">
-    <link rel="stylesheet" href="styles.css?v=2.98">
+    <link rel="stylesheet" href="styles.css?v=3.04">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <!-- Leaflet for Maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -34,7 +34,7 @@
             <div class="logo-container">
                 <div class="logo-icon">🚜</div>
                 <h1>TarMap</h1>
-                <div class="version-tag" id="login-version">V3.03</div>
+                <div class="version-tag" id="login-version">V3.04</div>
             </div>
             <p>Giriş yapmak için şifrenizi giriniz.</p>
             <div class="input-group">
@@ -58,7 +58,7 @@
             <div class="brand">
                 <span class="icon">🌾</span>
                 <span class="title">TarMap</span>
-                <span class="header-version" id="header-version">V3.03</span>
+                <span class="header-version" id="header-version">V3.04</span>
             </div>
             <div class="controls">
                 <button id="measure-dist" title="Mesafe Ölç" class="tool-btn">📏</button>
@@ -66,6 +66,7 @@
                 <button id="locate-me" title="Konumuma Git" class="tool-btn">📍</button>
                 <button id="nearby-parcels" title="Yakındaki Parseller (1km)" class="tool-btn">🔍</button>
                 <button id="open-settings" title="Veri Yükle" class="tool-btn">⚙️</button>
+                <button id="admin-open-btn" title="Kullanıcı Yönetimi" class="tool-btn admin-toolbar-btn hidden">👤</button>
                 <button id="toggle-header" title="Üst Menüyü Gizle" class="tool-btn">👁️</button>
             </div>
         </header>
@@ -234,10 +235,43 @@
         </div>
     </div>
 
+    <!-- Yönetici Paneli -->
+    <div id="admin-modal" class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+        <div class="admin-dialog">
+            <div class="admin-dialog-header">
+                <div>
+                    <h3 id="admin-title">Kullanıcı Yönetimi</h3>
+                    <p>Yalnızca yönetici hesabı tarafından kullanılabilir.</p>
+                </div>
+                <button id="admin-close-btn" class="admin-close-btn" type="button" title="Kapat">✕</button>
+            </div>
+            <div class="admin-add-card">
+                <h4>Yeni Kullanıcı Ekle</h4>
+                <p>Geçici şifre otomatik oluşturulur ve Telegram ID’ye gönderilir.</p>
+                <div class="admin-add-grid">
+                    <input id="admin-new-username" type="text" placeholder="Kullanıcı adı">
+                    <input id="admin-new-telegram" type="text" placeholder="Telegram ID">
+                </div>
+                <div class="admin-new-permissions">
+                    <label><input id="admin-new-vet" type="checkbox"> VetMap</label>
+                    <label><input id="admin-new-tar" type="checkbox"> TarMap</label>
+                    <button id="admin-add-btn" type="button" class="admin-primary-btn">Kullanıcı Ekle</button>
+                </div>
+            </div>
+            <div class="admin-list-header">
+                <h4>Kayıtlı Kullanıcılar</h4>
+                <button id="admin-refresh-btn" type="button" class="admin-refresh-btn">Yenile</button>
+            </div>
+            <div id="admin-status" class="admin-status" role="status"></div>
+            <div id="admin-users-list" class="admin-users-list"></div>
+        </div>
+    </div>
+
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="auto-load.js?v=2.98"></script>
-    <script src="app.js?v=3.03"></script>
+    <script src="auto-load.js?v=3.04"></script>
+    <script src="admin-panel.js?v=3.04"></script>
+    <script src="app.js?v=3.04"></script>
     <script>
         async function forceUpdate() {
             const btn = document.getElementById('force-update-btn');
