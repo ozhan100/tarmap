@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.05";
+const APP_VERSION = "3.06";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -502,12 +502,13 @@ async function renderFromMasterData(records, fitBounds = true) {
     }
 }
 
-// Ray-casting: [lng,lat] noktası poligonun içinde mi?
-function pointInPolygon(lng, lat, coords) {
+// Ray-casting: [lat,lng] (Point) dizisi olan ring'in içinde mi?
+// ring: [[lat,lng], [lat,lng], ...]
+function pointInPolygon(lat, lng, ring) {
     let inside = false;
-    for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
-        const xi = coords[i][0], yi = coords[i][1];
-        const xj = coords[j][0], yj = coords[j][1];
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const yi = ring[i][0], xi = ring[i][1];
+        const yj = ring[j][0], xj = ring[j][1];
         const intersect = ((yi > lat) !== (yj > lat)) &&
             (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
         if (intersect) inside = !inside;
@@ -515,32 +516,42 @@ function pointInPolygon(lng, lat, coords) {
     return inside;
 }
 
-// Poligonun İÇİNDE bir nokta döndürür. Bulunamazsa null.
+// Poligonun İÇİNDE bir [lat,lng] noktası döndürür. Bulunamazsa null.
+// coords tek ring ([[lat,lng]...]) ya da çoklu ring ([[[lat,lng]...],...])
+// olabilir; en çok köşeli ring (dış hat) seçilir.
 // Önce köşe ortalaması (centroid) denenir; dışarı düşerse köşe+centroid
 // orta noktaları denenir. Bu, parsel etiketinin komşu parsele taşmasını engeller.
 function getParcelInteriorPoint(coords) {
-    if (!coords || coords.length < 3) return null;
+    // Çoklu ring ise dış hat (en çok köşeli) ring'i seç.
+    let ring = coords;
+    if (coords.length > 0 && Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+        ring = coords.slice().sort((a, b) => b.length - a.length)[0];
+    }
+    if (!ring || ring.length < 3) return null;
+    // Ring'in kapalı olmaması (ilk=son köşe) durumunda tekrar sayma.
+    let pts = ring;
+    if (ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) {
+        pts = ring.slice(0, -1);
+    }
+    if (pts.length < 3) return null;
 
-    // Centroid: köşelerin aritmetik ortalaması
-    let cx = 0, cy = 0;
-    for (const [x, y] of coords) { cx += x; cy += y; }
-    cx /= coords.length; cy /= coords.length;
+    // Centroid: köşelerin aritmetik ortalaması ([lat,lng])
+    let clat = 0, clng = 0;
+    for (const [la, ln] of pts) { clat += la; clng += ln; }
+    clat /= pts.length; clng /= pts.length;
 
-    if (pointInPolygon(cx, cy, coords)) return [cy, cx];
+    if (pointInPolygon(clat, clng, pts)) return [clat, clng];
 
     // Dar/şekilsiz parsellerde centroid dışarı düşebilir.
-    // Her köşe ile centroid arasındaki orta noktaları dene.
-    const candidates = [];
-    for (const [x, y] of coords) {
-        const mx = (x + cx) / 2, my = (y + cy) / 2;
-        if (pointInPolygon(mx, my, coords)) return [my, mx];
-        candidates.push([my, mx]);
+    for (const [la, ln] of pts) {
+        const mlat = (la + clat) / 2, mlng = (ln + clng) / 2;
+        if (pointInPolygon(mlat, mlng, pts)) return [mlat, mlng];
     }
     // Komşu köşe orta noktalarını da dene (çok ince parseller için).
-    for (let i = 0; i < coords.length; i++) {
-        const a = coords[i], b = coords[(i + 1) % coords.length];
-        const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-        if (pointInPolygon(mx, my, coords)) return [my, mx];
+    for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length];
+        const mlat = (a[0] + b[0]) / 2, mlng = (a[1] + b[1]) / 2;
+        if (pointInPolygon(mlat, mlng, pts)) return [mlat, mlng];
     }
     return null;
 }
@@ -552,18 +563,15 @@ function addParcelLabel(rec) {
     const labelPoint = getParcelInteriorPoint(rec.coords);
     if (!labelPoint) return; // İç nokta yok → çok dar parsel, etiket atla.
 
-    const hasInfo = !!(rec.isletme || rec.urun);
     // Ada/parsel bilgisi her zaman yazılır; isim ve ürün varsa eklenir.
     const lines = [];
     if (rec.isletme) lines.push(`<div class="parcel-label-name">${escapeHtml(rec.isletme)}</div>`);
     lines.push(`<div class="parcel-label-ref">Ada ${rec.ada} / Parsel ${rec.parsel}</div>`);
     if (rec.urun) lines.push(`<div class="parcel-label-product">${escapeHtml(rec.urun)}</div>`);
-    // Bilgi hiç yoksa bile en az vitrin gösterilsin diye boş bırakma.
-    const html = lines.join('') || '<div class="parcel-label-ref"></div>';
 
     const icon = L.divIcon({
         className: 'parcel-label-icon',
-        html,
+        html: lines.join(''),
         iconSize: null,
         iconAnchor: null
     });
