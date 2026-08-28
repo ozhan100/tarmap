@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.06";
+const APP_VERSION = "3.07";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -195,6 +195,11 @@ async function initLeafletMap() {
 
     measureLayer = L.layerGroup().addTo(map);
     parcelLabelLayer = L.layerGroup().addTo(map);
+
+    // Parsel etiketleri yalnızca yeterince yakınlaşınca görünür olsun.
+    // Uzaklaşık iken tüm köy parsellerinin isimleri haritayı kaplayıp
+    // telefonu kasmaya yol açıyor.
+    map.on('zoomend', updateParcelLabels);
 
     // UI kurulumlarını hemen yap (Veri yüklenmesini bekleme)
     setupTools();
@@ -499,6 +504,8 @@ async function renderFromMasterData(records, fitBounds = true) {
     } finally {
         // Yükleme overlay'i her durumda kapansın (Android'de takılı kalmasın)
         hideLoading();
+        // Etiket görünürlüğünü güncel zoom'a göre ayarla
+        updateParcelLabels();
     }
 }
 
@@ -582,6 +589,20 @@ function addParcelLabel(rec) {
         keyboard: false,
         zIndexOffset: -200
     }).addTo(parcelLabelLayer);
+}
+
+// Parsel etiketlerinin görünürlüğünü zoom seviyesine göre ayarlar.
+// Etiketler her zaman (memory'de) oluşturulur; yalnızca zoom eşiğini aşınca
+// haritaya eklenir. Böylece uzaklaşık iken yüzlerce isim DOM'u kasıp görüntüyü
+// kaplamaz, yakınlaşınca hepsi birden görünür.
+const PARCEL_LABEL_MIN_ZOOM = 16;
+function updateParcelLabels() {
+    if (!map || !parcelLabelLayer) return;
+    if (map.getZoom() >= PARCEL_LABEL_MIN_ZOOM) {
+        if (!map.hasLayer(parcelLabelLayer)) parcelLabelLayer.addTo(map);
+    } else {
+        if (map.hasLayer(parcelLabelLayer)) map.removeLayer(parcelLabelLayer);
+    }
 }
 
 function escapeHtml(value) {
