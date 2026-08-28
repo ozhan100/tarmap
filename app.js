@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.10";
+const APP_VERSION = "3.11";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -1448,7 +1448,7 @@ function setupSearch() {
         // - ürünTerms: ürün adı olanlar (ör. "buğday", "arpa", "mısır") → OR ile aranır
         // - otherTerms: isim/köy/TC/ada/parsel gibi diğer terimler → AND ile aranır
         const urunTerms = [];
-        const otherTerms = [];
+        let otherTerms = [];
         searchTerms.forEach(term => {
             if (term === 'yem_bitkisi_alias' || isUrunTerm(term)) {
                 urunTerms.push(term);
@@ -1474,13 +1474,26 @@ function setupSearch() {
         } else if (otherTerms.length > 0) {
             // Prefiks yoksa bile otherTerms içinde köy adı olabilir.
             // Tam köy adı eşleşmesi varsa adayları daralt (kısmi eşleşmeye düşme).
-            const cleanOtherTerms = otherTerms.map(t => getCleanMahalle(t)).filter(Boolean);
-            if (cleanOtherTerms.length) {
+            // Birden fazla köy adı yazılırsa "çavuşköy süleymaniye" → bu köylerin
+            // parselleri OR ile birleştirilir (AND ile boşa düşürülmez).
+            const koyAdlari = new Set();
+            otherTerms.forEach(term => {
+                const c = getCleanMahalle(term);
+                if (!c) return;
+                const varMi = candidates.some(r => getCleanMahalle(r.mahalle || '') === c);
+                if (varMi) koyAdlari.add(c);
+            });
+            if (koyAdlari.size > 0) {
                 const mahalleExact = candidates.filter(r => {
                     const mc = getCleanMahalle(r.mahalle || '');
-                    return mc && cleanOtherTerms.some(t => t === mc);
+                    return mc && koyAdlari.has(mc);
                 });
-                if (mahalleExact.length > 0) candidates = mahalleExact;
+                if (mahalleExact.length > 0) {
+                    candidates = mahalleExact;
+                    // Köy terimlerini otherTerms'ten çıkar; köy filtrelemesi candidates
+                    // daraltmasıyla OR olarak uygulandı, sonraki AND'e düşürülmemeli.
+                    otherTerms = otherTerms.filter(t => !koyAdlari.has(getCleanMahalle(t)));
+                }
             }
         }
 
