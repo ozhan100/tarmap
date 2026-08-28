@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.08";
+const APP_VERSION = "3.09";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -200,6 +200,8 @@ async function initLeafletMap() {
     // Uzaklaşık iken tüm köy parsellerinin isimleri haritayı kaplayıp
     // telefonu kasmaya yol açıyor.
     map.on('zoomend', updateParcelLabels);
+    // Kaydırma (pan) sonrası da ekranda görünen parsellerin etiketleri güncellensin.
+    map.on('moveend', updateParcelLabels);
 
     // UI kurulumlarını hemen yap (Veri yüklenmesini bekleme)
     setupTools();
@@ -489,10 +491,10 @@ async function renderFromMasterData(records, fitBounds = true) {
                 bounds.extend(polygon.getBounds());
                 mapPolygons.push(polygon);
 
-                // Parsel içine isim/ada-parsel/ürün etiketi yerleştir.
+                // Parsel içine isim/ada-parsel/ürün etiketi hazırla.
                 // Farklı parsele taşmaması için mutlaka poligonun İÇİNDE olan
                 // bir noktaya konur; iç nokta bulunamazsa etiket atlanır.
-                addParcelLabel(rec);
+                addParcelLabel(polygon, rec);
             } catch (err) {
                 console.warn('Parsel çizilemedi:', rec.mahalle, rec.ada, rec.parsel, err);
             }
@@ -563,9 +565,11 @@ function getParcelInteriorPoint(coords) {
     return null;
 }
 
-// Tek parselin içine isim/ada-parsel/ürün etiketi yerleştirir.
-function addParcelLabel(rec) {
-    if (!parcelLabelLayer || !rec?.coords || !rec.coords.length) return;
+// Tek parselin içine isim/ada-parsel/ürün etiketi (marker) oluşturur.
+// Etiket marker'ı ilgili poligona bağlanır (polygon._label); görünürlüğünü
+// updateParcelLabels yönetir (zoom + viewport filtresi).
+function addParcelLabel(polygon, rec) {
+    if (!polygon || !rec?.coords || !rec.coords.length) return;
 
     const labelPoint = getParcelInteriorPoint(rec.coords);
     if (!labelPoint) return; // İç nokta yok → çok dar parsel, etiket atla.
@@ -586,27 +590,35 @@ function addParcelLabel(rec) {
         iconAnchor: [0, 0]
     });
 
-    L.marker(labelPoint, {
+    polygon._label = L.marker(labelPoint, {
         icon,
         interactive: false,
         keyboard: false,
         zIndexOffset: -200
-    }).addTo(parcelLabelLayer);
+    });
 }
 
-// Parsel etiketlerinin görünürlüğünü zoom seviyesine göre ayarlar.
-// Etiketler her zaman (memory'de) oluşturulur; yalnızca zoom eşiğini aşınca
-// haritaya eklenir. Böylece uzaklaşık iken yüzlerce isim DOM'u kasıp görüntüyü
-// kaplamaz, yakınlaşınca hepsi birden görünür.
-// Topluluk ölçeğinde değil, en yakın zoom'da (20) göster.
-const PARCEL_LABEL_MIN_ZOOM = 20;
+// Parsel etiketlerinin görünürlüğünü zoom seviyesine VE ekran görünmezine
+// göre ayarlar. Yalnızca zoom >= eşikte VE haritanın görüntülediği alanda
+// kalan parsellerin isimleri yazılır. Uzaktaki / ekran dışındaki parseller
+// boşuna render edilmez → telefon kasmaz.
+const PARCEL_LABEL_MIN_ZOOM = 18;
 function updateParcelLabels() {
     if (!map || !parcelLabelLayer) return;
-    if (map.getZoom() >= PARCEL_LABEL_MIN_ZOOM) {
-        if (!map.hasLayer(parcelLabelLayer)) parcelLabelLayer.addTo(map);
-    } else {
-        if (map.hasLayer(parcelLabelLayer)) map.removeLayer(parcelLabelLayer);
-    }
+    // Önceki etiketleri haritadan çıkar (marker nesneleri korunur, polygon._label).
+    parcelLabelLayer.clearLayers();
+
+    if (map.getZoom() < PARCEL_LABEL_MIN_ZOOM) return;
+
+    const viewBounds = map.getBounds();
+    mapPolygons.forEach(p => {
+        const label = p._label;
+        if (!label) return;
+        // Poligon ekranın görünen alanıyla kesişiyorsa etiketini göster.
+        if (viewBounds.intersects(p.getBounds())) {
+            parcelLabelLayer.addLayer(label);
+        }
+    });
 }
 
 function escapeHtml(value) {
