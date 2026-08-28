@@ -1268,16 +1268,25 @@ header.ui-hidden {
     .admin-primary-btn { margin-left: 0; }
 }
 
-/* Parsel i�i etiket (isim / ada-parsel / �r�n) */
+/* Parsel i�i etiket (isim / ada-parsel / �r�n) */
+/* Dış kutu sıfır boyutlu: marker noktasına oturur (Leaflet anchor [0,0]). */
 .parcel-label-icon {
     background: none;
     border: none;
+    width: 0 !important;
+    height: 0 !important;
     pointer-events: none;
-    text-align: center;
     line-height: 1.15;
     white-space: nowrap;
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.85));
+}
+/* İçerik sıfır noktanın merkezine ortalanır → isim parsele tam denk gelir. */
+.parcel-label-inner {
+    position: absolute;
+    left: 0;
+    top: 0;
     transform: translate(-50%, -50%);
+    text-align: center;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.85));
 }
 .parcel-label-name {
     color: #fff;

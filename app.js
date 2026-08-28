@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.07";
+const APP_VERSION = "3.08";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -578,9 +578,12 @@ function addParcelLabel(rec) {
 
     const icon = L.divIcon({
         className: 'parcel-label-icon',
-        html: lines.join(''),
-        iconSize: null,
-        iconAnchor: null
+        // Sıfır boyutlu dış kutu marker noktasına oturur; içerik bu noktanın
+        // merkezine (translate -50%,-50%) ortalanır. Böylece isim parsele
+        // tam denk gelir ve başka yere kaymaz.
+        html: `<div class="parcel-label-inner">${lines.join('')}</div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
     });
 
     L.marker(labelPoint, {
@@ -595,7 +598,8 @@ function addParcelLabel(rec) {
 // Etiketler her zaman (memory'de) oluşturulur; yalnızca zoom eşiğini aşınca
 // haritaya eklenir. Böylece uzaklaşık iken yüzlerce isim DOM'u kasıp görüntüyü
 // kaplamaz, yakınlaşınca hepsi birden görünür.
-const PARCEL_LABEL_MIN_ZOOM = 16;
+// Topluluk ölçeğinde değil, en yakın zoom'da (20) göster.
+const PARCEL_LABEL_MIN_ZOOM = 20;
 function updateParcelLabels() {
     if (!map || !parcelLabelLayer) return;
     if (map.getZoom() >= PARCEL_LABEL_MIN_ZOOM) {
