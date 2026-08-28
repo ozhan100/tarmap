@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.11";
+const APP_VERSION = "3.12";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -747,25 +747,31 @@ async function cacheClear() {
 }
 
 // Kaynak dosyalar değiştiyse eski önbellek geçersiz olsun diye
-// ada göre bir kimlik hesaplar. Böylece aynı köyün farklı/başka bir
-// GML'i seçildiğinde eski sonuç kullanılmaz.
+// ada göre bir kimlik hesaplar. Burada YALNIZCA GML dosyası imzaya dahil
+// edilir; parseller/çiftçi Excelleri günlük değiştiği için (Telegram'dan
+// gelen parsel raporu, parsel bazlı üretim raporu) onlar imzaya katılmaz.
+// Böylece o Exceller değişse bile 212 MB GML her açılışta yeniden
+// ayrıştırılmaz; GML dosyası değiştiğinde önbellek otomatik yenilenir.
 function cacheSignature() {
     const sig = (f) => {
         if (!f) return '';
         return `${f.name}|${f.size}|${f.lastModified}`;
     };
-    return ['gml', 'csv', 'excel'].map(k => sig(selectedFiles[k])).join(';');
+    return sig(selectedFiles.gml);
 }
 
-// Sonucu (masterRecords) IndexedDB'ye yazar. Önbellek cihazda yer
-// kapladığı için kayıtların birebir aynı yapısı (rec.coords, ada,
-// parsel, mahalle, isletme, urun, ...) korunur.
-async function saveMasterDataCache(records) {
+// Sonucu (gmlFeatures - sadece GML'den gelen parsel geometrileri)
+// IndexedDB'ye yazar. Parsellerle birleştirilmiş tam veri (masterRecords)
+// buraya yazılmaz; çünkü parsel/çiftçi Excelleri günlük değişir. GML ise
+// neredeyse sabittir, bu yüzden yalnızca geometriyi ayırarak önbelleklenir.
+// Önbellek cihazda yer kapladığı için kayıtların birebir aynı yapısı
+// (feature.ada, parsel, mahalle, coords ...) korunur.
+async function saveMasterDataCache(features) {
     try {
         const payload = {
             sig: cacheSignature(),
             savedAt: Date.now(),
-            records
+            features
         };
         return await cacheWrite(payload);
     } catch (e) {
@@ -773,38 +779,49 @@ async function saveMasterDataCache(records) {
     }
 }
 
-// Uygun bir cache varsa ve imzası mevcut dosyalarla eşleşiyorsa döndürür.
+// Uygun bir GML önbelleği varsa ve imzası mevcut GML dosyasıyla eşleşiyorsa
+// geometri listesini döndürür. Eski şema (tüm birleşik records) artık
+// kullanılmaz; eski kayıt varsa GML yeniden ayrıştırılıp yeni şemayla yazılır.
 async function loadMasterDataCache(progressCb) {
     try {
         const payload = await cacheRead();
-        if (!payload || !payload.sig || !Array.isArray(payload.records)) return null;
-        if (payload.sig !== cacheSignature()) return null; // kaynaklar değişmiş
-        const recs = payload.records;
-        progressCb?.(100, 'Önbellekten hızlı yüklendi.', `${recs.length} parsel`);
-        return recs;
+        if (!payload || payload.sig !== cacheSignature()) return null; // kaynak GML değişmiş
+        if (payload.features && Array.isArray(payload.features) && payload.features.length) {
+            progressCb?.(30, 'GML önbellekten yüklendi.', `${payload.features.length} parsel geometrisi`);
+            return payload.features;
+        }
+        return null;
     } catch (e) {
         return null;
     }
 }
 
 async function buildMasterData(progressCb) {
-    // Önbellekte bu dosyaların aynısından hazır sonuç varsa ağır GML
-    // ayrıştırmayı (DOMParser) hiç yapmadan doğrudan kullan.
-    const cached = await loadMasterDataCache(progressCb);
-    if (cached) {
-        masterRecords = cached;
-        return cached;
-    }
+    // GML geometrisini önbellekten okumayı dene. Önbellek imzası yalnızca
+    // GML dosyasına bağlı olduğundan, parsel/çiftçi Excelleri (günlük
+    // değişen) önbelleği geçersiz kılmaz. Yalnızca GML değişirse 212 MB
+    // GML yeniden ayrıştırılıp önbellek yenilenir.
+    const cachedFeatures = await loadMasterDataCache(progressCb);
+    if (cachedFeatures) {
+        gmlFeatures = cachedFeatures;
+    } else {
+        gmlFeatures = [];
+        if (selectedFiles.gml) {
+            progressCb?.(5, 'GML dosyası okunuyor...', '');
+            await yieldToUI();
+            const text = await selectedFiles.gml.text();
+            await parseGML(text, progressCb);
 
-    progressCb?.(5, 'GML dosyası okunuyor...', '');
-    await yieldToUI();
-    
-    gmlFeatures = [];
-    if (selectedFiles.gml) {
-        const text = await selectedFiles.gml.text();
-        await parseGML(text, progressCb);
+            // GML sonucunu önbelleğe yaz → sonraki açılışta GML parse edilmesin.
+            try {
+                await saveMasterDataCache(gmlFeatures);
+            } catch (e) {
+                console.warn('GML önbelleğe kaydedilemedi (yok sayılır):', e);
+            }
+        }
+        progressCb?.(35, `${gmlFeatures.length} parsel geometrisi okundu.`, '');
+        await yieldToUI();
     }
-    progressCb?.(35, `${gmlFeatures.length} parsel geometrisi okundu.`, '');
 
     parselData = [];
     if (selectedFiles.csv) {
@@ -949,18 +966,10 @@ async function buildMasterData(progressCb) {
     progressCb?.(95, `Son veri yapısı hazırlandı.`, `${records.length} kayıt birleştirildi`);
     await yieldToUI();
 
-    // Sonucu cihazın YEREL deposuna kaydet. Böylece sonraki açılışlarda
-    // 212 MB GML yeniden ayrıştırılmaz (telefon daha hızlı ve donmadan yükler).
-    // Bu veri telefon dışına asla çıkmaz (KVKK güvenliği - cihaz içi saklama).
-    try {
-        const saved = await saveMasterDataCache(records);
-        if (saved) {
-            progressCb?.(100, 'Sonuç cihaza kaydedildi. Sonraki açılışlar çok daha hızlı olacak.', `${records.length} parsel`);
-            await yieldToUI();
-        }
-    } catch (e) {
-        console.warn('Önbelleğe kaydedilemedi (yok sayılır):', e);
-    }
+    // Not: Burada birleşik records (masterRecords) önbelleğe yazılmaz.
+    // Sürekli değişen parsel/çiftçi Excellerinden geldiği için eski günün
+    // verisi cihazda kalmasın. Önbellek yalnızca GML geometrisini tutar
+    // (buildMasterData başında, parse sonrası saveMasterDataCache ile).
 
     masterRecords = records;
     return records;
