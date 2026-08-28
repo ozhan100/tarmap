@@ -1267,3 +1267,35 @@ header.ui-hidden {
     .admin-add-grid { grid-template-columns: 1fr; }
     .admin-primary-btn { margin-left: 0; }
 }
+
+/* Parsel içi etiket (isim / ada-parsel / ürün) */
+.parcel-label-icon {
+    background: none;
+    border: none;
+    pointer-events: none;
+    text-align: center;
+    line-height: 1.15;
+    white-space: nowrap;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.85));
+    transform: translate(-50%, -50%);
+}
+.parcel-label-name {
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+.parcel-label-ref {
+    color: #ffe08a;
+    font-weight: 600;
+    font-size: 10.5px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+    margin-top: 1px;
+}
+.parcel-label-product {
+    color: #a7f3d0;
+    font-size: 10px;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+    margin-top: 1px;
+}

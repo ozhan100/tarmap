@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.04";
+const APP_VERSION = "3.05";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -19,6 +19,8 @@ let parselData = [];
 let farmerData = [];
 let gmlFeatures = [];
 let mapPolygons = [];
+// Parsel içine yerleştirilen isim/ada-parsel/ürün etiketleri (divIcon marker).
+let parcelLabelLayer;
 let userMarker;
 let isMeasuringDist = false;
 let isMeasuringArea = false;
@@ -192,6 +194,7 @@ async function initLeafletMap() {
     }).addTo(map);
 
     measureLayer = L.layerGroup().addTo(map);
+    parcelLabelLayer = L.layerGroup().addTo(map);
 
     // UI kurulumlarını hemen yap (Veri yüklenmesini bekleme)
     setupTools();
@@ -397,6 +400,8 @@ async function renderFromMasterData(records, fitBounds = true) {
         // Mevcut poligonları temizle
         mapPolygons.forEach(p => map.removeLayer(p));
         mapPolygons = [];
+        // Mevcut parsel etiketlerini de temizle
+        if (parcelLabelLayer) parcelLabelLayer.clearLayers();
 
         if (!records || !records.length) return;
 
@@ -478,6 +483,11 @@ async function renderFromMasterData(records, fitBounds = true) {
 
                 bounds.extend(polygon.getBounds());
                 mapPolygons.push(polygon);
+
+                // Parsel içine isim/ada-parsel/ürün etiketi yerleştir.
+                // Farklı parsele taşmaması için mutlaka poligonun İÇİNDE olan
+                // bir noktaya konur; iç nokta bulunamazsa etiket atlanır.
+                addParcelLabel(rec);
             } catch (err) {
                 console.warn('Parsel çizilemedi:', rec.mahalle, rec.ada, rec.parsel, err);
             }
@@ -491,6 +501,91 @@ async function renderFromMasterData(records, fitBounds = true) {
         hideLoading();
     }
 }
+
+// Ray-casting: [lng,lat] noktası poligonun içinde mi?
+function pointInPolygon(lng, lat, coords) {
+    let inside = false;
+    for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+        const xi = coords[i][0], yi = coords[i][1];
+        const xj = coords[j][0], yj = coords[j][1];
+        const intersect = ((yi > lat) !== (yj > lat)) &&
+            (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+// Poligonun İÇİNDE bir nokta döndürür. Bulunamazsa null.
+// Önce köşe ortalaması (centroid) denenir; dışarı düşerse köşe+centroid
+// orta noktaları denenir. Bu, parsel etiketinin komşu parsele taşmasını engeller.
+function getParcelInteriorPoint(coords) {
+    if (!coords || coords.length < 3) return null;
+
+    // Centroid: köşelerin aritmetik ortalaması
+    let cx = 0, cy = 0;
+    for (const [x, y] of coords) { cx += x; cy += y; }
+    cx /= coords.length; cy /= coords.length;
+
+    if (pointInPolygon(cx, cy, coords)) return [cy, cx];
+
+    // Dar/şekilsiz parsellerde centroid dışarı düşebilir.
+    // Her köşe ile centroid arasındaki orta noktaları dene.
+    const candidates = [];
+    for (const [x, y] of coords) {
+        const mx = (x + cx) / 2, my = (y + cy) / 2;
+        if (pointInPolygon(mx, my, coords)) return [my, mx];
+        candidates.push([my, mx]);
+    }
+    // Komşu köşe orta noktalarını da dene (çok ince parseller için).
+    for (let i = 0; i < coords.length; i++) {
+        const a = coords[i], b = coords[(i + 1) % coords.length];
+        const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+        if (pointInPolygon(mx, my, coords)) return [my, mx];
+    }
+    return null;
+}
+
+// Tek parselin içine isim/ada-parsel/ürün etiketi yerleştirir.
+function addParcelLabel(rec) {
+    if (!parcelLabelLayer || !rec?.coords || !rec.coords.length) return;
+
+    const labelPoint = getParcelInteriorPoint(rec.coords);
+    if (!labelPoint) return; // İç nokta yok → çok dar parsel, etiket atla.
+
+    const hasInfo = !!(rec.isletme || rec.urun);
+    // Ada/parsel bilgisi her zaman yazılır; isim ve ürün varsa eklenir.
+    const lines = [];
+    if (rec.isletme) lines.push(`<div class="parcel-label-name">${escapeHtml(rec.isletme)}</div>`);
+    lines.push(`<div class="parcel-label-ref">Ada ${rec.ada} / Parsel ${rec.parsel}</div>`);
+    if (rec.urun) lines.push(`<div class="parcel-label-product">${escapeHtml(rec.urun)}</div>`);
+    // Bilgi hiç yoksa bile en az vitrin gösterilsin diye boş bırakma.
+    const html = lines.join('') || '<div class="parcel-label-ref"></div>';
+
+    const icon = L.divIcon({
+        className: 'parcel-label-icon',
+        html,
+        iconSize: null,
+        iconAnchor: null
+    });
+
+    L.marker(labelPoint, {
+        icon,
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: -200
+    }).addTo(parcelLabelLayer);
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>'"]/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+    }[character]));
+}
+
 
 // Bilgi panelinde gösterilen (seçili) parselin içini koyulaştırır.
 // Aynı mahalle-ada-parsel için birden fazla geometri varsa hepsi vurgulanır.

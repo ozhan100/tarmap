@@ -2,7 +2,7 @@
   "name": "TarMap - Tarla Takip Sistemi",
   "short_name": "TarMap",
   "description": "Tarla parselleri, ürün ve işletme sahiplerini harita üzerinde takip edin.",
-  "version": "3.04",
+  "version": "3.05",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
