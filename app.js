@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.09";
+const APP_VERSION = "3.10";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -320,6 +320,26 @@ function setupSettings() {
         } finally {
             hideLoading();
             if (progressArea) progressArea.classList.add('hidden');
+        }
+    });
+
+    // Yerel önbelleği (IndexedDB) sil - gizlilik/güvenlik amacıyla.
+    // Not: Bu veri zaten TAMAMEN cihazın içindedir; yine de kullanıcı
+    // isterse bir tıklamayla tüm kayıtlı veriyi kaldırabilir.
+    const clearCacheBtn = document.getElementById('clear-cache-btn');
+    clearCacheBtn?.addEventListener('click', async () => {
+        if (!confirm('Kayıtlı tüm veriler cihazdan silinsin mi?\n\nBu işlem İNTERNETE veya sunucuya hiçbir şey göndermez; yalnızca telefonunuzdaki yerel kopyayı temizler.')) {
+            return;
+        }
+        try {
+            await cacheClear();
+            clearCacheBtn.textContent = '✅ Yerel veri silindi';
+            setTimeout(() => {
+                clearCacheBtn.textContent = '🗑️ Kayıtlı Veriyi Sil';
+            }, 2500);
+        } catch (e) {
+            console.error(e);
+            alert('Temizleme sırasında bir sorun oluştu.');
         }
     });
 }
@@ -651,7 +671,131 @@ function highlightSelectedParsel(feature) {
 // Tarayıcıya arayüzü güncellemesi için fırsat verir (Paint)
 const yieldToUI = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+// ════════════════════════════════════════════════════════════════════
+//  Yerel Veri Önbelleği (IndexedDB)
+//  Amaç: 212 MB GML'i her açılışta DOMParser ile yeniden çözmek eski
+//  telefonları (örn. Samsung J7 Pro) %5'te donduruyor. İlk ayrıştırma
+//  sonucu (masterRecords) telefonun YEREL veri deposuna (IndexedDB)
+//  kaydedilir; sonraki açılışlarda doğrudan oradan okunur.
+//
+//  KVKK / GİZLİLİK: Bu veri TAMAMEN kullanıcının cihazında kalır.
+//  İnternete, Git/GitHub'a veya herhangi bir sunucuya HİÇBİR VERİ GİTMEZ.
+//  Kullanıcı "Önbelleği temizle" ile istediği an silebilir. Bu uygulama
+//  zaten sunucusuzdur ve tüm veriyi kullanıcının Downloads'ından okur.
+//  Yalnızca saklama yeri belleğin (RAM) yerine telefonun diskine taşınır;
+//  ikisi de cihaz içidir. Dışarıya veri çıkışı EKLENMEZ.
+// ════════════════════════════════════════════════════════════════════
+const CACHE_DB_NAME = 'tarmap_data_cache';
+const CACHE_DB_VERSION = 1;
+const CACHE_STORE = 'masterData';
+const CACHE_KEY = 'records';
+
+function idbFindCache() {
+    return new Promise((resolve) => {
+        if (!window.indexedDB) return resolve(null);
+        const req = indexedDB.open(CACHE_DB_NAME, CACHE_DB_VERSION);
+        req.onupgradeneeded = () => {
+            if (!req.result.objectStoreNames.contains(CACHE_STORE)) {
+                req.result.createObjectStore(CACHE_STORE);
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+    });
+}
+
+async function cacheRead() {
+    const db = await idbFindCache();
+    if (!db) return null;
+    return new Promise((resolve) => {
+        try {
+            const tx = db.transaction(CACHE_STORE, 'readonly');
+            const getReq = tx.objectStore(CACHE_STORE).get(CACHE_KEY);
+            getReq.onsuccess = () => resolve(getReq.result || null);
+            getReq.onerror = () => resolve(null);
+        } catch (e) {
+            resolve(null);
+        }
+    });
+}
+
+async function cacheWrite(data) {
+    const db = await idbFindCache();
+    if (!db) return false;
+    return new Promise((resolve) => {
+        try {
+            const tx = db.transaction(CACHE_STORE, 'readwrite');
+            tx.objectStore(CACHE_STORE).put(data, CACHE_KEY);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
+            tx.onabort = () => resolve(false);
+        } catch (e) {
+            resolve(false);
+        }
+    });
+}
+
+// Önbelleği tamamen siler (kullanıcı güvenlik/gizlilik amacıyla isteyebilir)
+async function cacheClear() {
+    const db = await idbFindCache();
+    if (!db) return;
+    try {
+        const tx = db.transaction(CACHE_STORE, 'readwrite');
+        tx.objectStore(CACHE_STORE).delete(CACHE_KEY);
+        await new Promise(r => { tx.oncomplete = r; tx.onerror = r; });
+    } catch (e) { /* yok say */ }
+}
+
+// Kaynak dosyalar değiştiyse eski önbellek geçersiz olsun diye
+// ada göre bir kimlik hesaplar. Böylece aynı köyün farklı/başka bir
+// GML'i seçildiğinde eski sonuç kullanılmaz.
+function cacheSignature() {
+    const sig = (f) => {
+        if (!f) return '';
+        return `${f.name}|${f.size}|${f.lastModified}`;
+    };
+    return ['gml', 'csv', 'excel'].map(k => sig(selectedFiles[k])).join(';');
+}
+
+// Sonucu (masterRecords) IndexedDB'ye yazar. Önbellek cihazda yer
+// kapladığı için kayıtların birebir aynı yapısı (rec.coords, ada,
+// parsel, mahalle, isletme, urun, ...) korunur.
+async function saveMasterDataCache(records) {
+    try {
+        const payload = {
+            sig: cacheSignature(),
+            savedAt: Date.now(),
+            records
+        };
+        return await cacheWrite(payload);
+    } catch (e) {
+        return false;
+    }
+}
+
+// Uygun bir cache varsa ve imzası mevcut dosyalarla eşleşiyorsa döndürür.
+async function loadMasterDataCache(progressCb) {
+    try {
+        const payload = await cacheRead();
+        if (!payload || !payload.sig || !Array.isArray(payload.records)) return null;
+        if (payload.sig !== cacheSignature()) return null; // kaynaklar değişmiş
+        const recs = payload.records;
+        progressCb?.(100, 'Önbellekten hızlı yüklendi.', `${recs.length} parsel`);
+        return recs;
+    } catch (e) {
+        return null;
+    }
+}
+
 async function buildMasterData(progressCb) {
+    // Önbellekte bu dosyaların aynısından hazır sonuç varsa ağır GML
+    // ayrıştırmayı (DOMParser) hiç yapmadan doğrudan kullan.
+    const cached = await loadMasterDataCache(progressCb);
+    if (cached) {
+        masterRecords = cached;
+        return cached;
+    }
+
     progressCb?.(5, 'GML dosyası okunuyor...', '');
     await yieldToUI();
     
@@ -804,6 +948,21 @@ async function buildMasterData(progressCb) {
 
     progressCb?.(95, `Son veri yapısı hazırlandı.`, `${records.length} kayıt birleştirildi`);
     await yieldToUI();
+
+    // Sonucu cihazın YEREL deposuna kaydet. Böylece sonraki açılışlarda
+    // 212 MB GML yeniden ayrıştırılmaz (telefon daha hızlı ve donmadan yükler).
+    // Bu veri telefon dışına asla çıkmaz (KVKK güvenliği - cihaz içi saklama).
+    try {
+        const saved = await saveMasterDataCache(records);
+        if (saved) {
+            progressCb?.(100, 'Sonuç cihaza kaydedildi. Sonraki açılışlar çok daha hızlı olacak.', `${records.length} parsel`);
+            await yieldToUI();
+        }
+    } catch (e) {
+        console.warn('Önbelleğe kaydedilemedi (yok sayılır):', e);
+    }
+
+    masterRecords = records;
     return records;
 }
 

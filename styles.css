@@ -922,7 +922,14 @@ header.ui-hidden {
     color: #fff;
     box-shadow: 0 4px 14px rgba(34, 197, 94, 0.35);
 }
+.action-btn-large.red {
+    background: linear-gradient(135deg, #b91c1c, #ef4444);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+}
 .action-btn-large:hover { opacity: 0.9; }
+
+#clear-cache-btn { margin-top: 4px; }
 
 #merge-progress-area {
     margin: 10px 0;
