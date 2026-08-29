@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.12";
+const APP_VERSION = "3.13";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -1394,7 +1394,9 @@ function parseFieldQuery(rawQuery) {
 // tam eşleşen yoksa kısmi (alt dize) eşleşmeye düşer.
 // Böylece "süle" ararken "süleymaniye" karışmaz (tam "SÜLE" varsa sadece o gelir).
 function filterByMahalle(records, terms) {
-    const cleanTerms = terms.map(t => getCleanMahalle(t)).filter(Boolean);
+    const cleanTerms = terms
+        .flatMap(t => String(t).split(',').map(part => getCleanMahalle(part)))
+        .filter(Boolean);
     const exact = records.filter(r => {
         const mc = getCleanMahalle(r.mahalle || '');
         return mc && cleanTerms.some(t => t === mc);
@@ -1451,7 +1453,7 @@ function setupSearch() {
         // 'yem bitkisi' aramalarını tek bir özel anahtar kelimeye dönüştür
         normalizedQuery = normalizedQuery.replace(/yem bitkis[iİ]/g, 'yem_bitkisi_alias').replace(/yem bitkiler[iİ]/g, 'yem_bitkisi_alias');
 
-        const searchTerms = normalizedQuery.split(/\s+/);
+        const searchTerms = normalizedQuery.split(/[\s,]+/).filter(Boolean);
 
         // Terimleri ikiye ayır:
         // - ürünTerms: ürün adı olanlar (ör. "buğday", "arpa", "mısır") → OR ile aranır
