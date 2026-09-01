@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.14";
+const APP_VERSION = "3.15";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -1840,14 +1840,19 @@ function drawParcelSketch(canvas, coords, rec) {
         }
     }
 
-    const pad = 30;
-    const drawW = W - pad * 2;
-    const drawH = H - pad * 2;
+    // Ust ve alt/Sol/sağ padding. Uste kartın üzerindeki etiket çubuğu
+    // olduğu için daha fazla boşluk bırakılır; böylece uzun/çok büyük
+    // parsellerde hiçbir köşe etiket çubuğunun altında kalmaz.
+    const sidePad = 28;
+    const topPad = 60;
+    const bottomPad = 28;
+    const drawW = W - sidePad * 2;
+    const drawH = H - topPad - bottomPad;
     const rangeLat = maxLat - minLat || 0.0001;
     const rangeLng = maxLng - minLng || 0.0001;
     const scale = Math.min(drawW / rangeLng, drawH / rangeLat);
     const cx = W / 2;
-    const cy = H / 2;
+    const cy = topPad + drawH / 2;
     const midLat = (minLat + maxLat) / 2;
     const midLng = (minLng + maxLng) / 2;
 
@@ -1891,62 +1896,6 @@ function drawParcelSketch(canvas, coords, rec) {
             ctx.strokeStyle = strokeColor;
             ctx.lineWidth = 1.5;
             ctx.stroke();
-        }
-    }
-
-    // Ada/parsel etiketi (poligon ortasına)
-    const centroid = getParcelInteriorPoint(coords);
-    if (centroid) {
-        const [tx, ty] = toCanvas(centroid[0], centroid[1]);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        // Arka plan kutusu
-        const labelText = `Ada ${rec?.ada || '?'} / Parsel ${rec?.parsel || '?'}`;
-        const nameText = rec?.isletme || '';
-        const productText = rec?.urun || '';
-
-        ctx.font = 'bold 12px Arial';
-        const tw1 = ctx.measureText(labelText).width;
-        ctx.font = '11px Arial';
-        const tw2 = nameText ? ctx.measureText(nameText).width : 0;
-        const tw3 = productText ? ctx.measureText(productText).width : 0;
-        const maxTw = Math.max(tw1, tw2, tw3);
-        const lineH = 15;
-        const lines = [];
-        if (nameText) lines.push(nameText);
-        lines.push(labelText);
-        if (productText) lines.push(productText);
-        const boxH = lines.length * lineH + 8;
-        const boxW = maxTw + 16;
-
-        ctx.fillStyle = 'rgba(255,255,255,0.88)';
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        if (typeof ctx.roundRect === 'function') {
-            ctx.roundRect(tx - boxW / 2, ty - boxH / 2, boxW, boxH, 4);
-        } else {
-            ctx.rect(tx - boxW / 2, ty - boxH / 2, boxW, boxH);
-        }
-        ctx.fill();
-        ctx.stroke();
-
-        let yOff = ty - boxH / 2 + lineH / 2 + 3;
-        if (nameText) {
-            ctx.fillStyle = '#333';
-            ctx.font = '11px Arial';
-            ctx.fillText(nameText, tx, yOff);
-            yOff += lineH;
-        }
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 12px Arial';
-        ctx.fillText(labelText, tx, yOff);
-        yOff += lineH;
-        if (productText) {
-            ctx.fillStyle = '#555';
-            ctx.font = '11px Arial';
-            ctx.fillText(productText, tx, yOff);
         }
     }
 }
