@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.13";
+const APP_VERSION = "3.14";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -1793,6 +1793,164 @@ function clearMeasurements() {
     measureText.innerText = "";
 }
 
+function drawParcelSketch(canvas, coords, rec) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    if (!coords || coords.length === 0) {
+        ctx.fillStyle = '#999';
+        ctx.font = '13px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Geometri yok', W / 2, H / 2);
+        return;
+    }
+
+    // coords çoklu ring olabilir: [[[lat,lng]...], [[lat,lng]...], ...]
+    // tek ring de olabilir: [[lat,lng], [lat,lng], ...]
+    let rings = coords;
+    if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+        rings = coords;
+    } else {
+        rings = [coords];
+    }
+    rings = rings.filter(r => r && r.length >= 3);
+    if (rings.length === 0) {
+        ctx.fillStyle = '#999';
+        ctx.font = '13px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Geometri yok', W / 2, H / 2);
+        return;
+    }
+
+    // En çok köşeli ring dış hat; diğerleri iç delik kabul edilir.
+    const outer = rings.slice().sort((a, b) => b.length - a.length)[0];
+
+    // Poligon sınırlarını hesapla (tüm ringler hesaba katılır)
+    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    for (const ring of rings) {
+        for (const [lat, lng] of ring) {
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+        }
+    }
+
+    const pad = 30;
+    const drawW = W - pad * 2;
+    const drawH = H - pad * 2;
+    const rangeLat = maxLat - minLat || 0.0001;
+    const rangeLng = maxLng - minLng || 0.0001;
+    const scale = Math.min(drawW / rangeLng, drawH / rangeLat);
+    const cx = W / 2;
+    const cy = H / 2;
+    const midLat = (minLat + maxLat) / 2;
+    const midLng = (minLng + maxLng) / 2;
+
+    function toCanvas(lat, lng) {
+        const x = cx + (lng - midLng) * scale;
+        const y = cy - (lat - midLat) * scale;
+        return [x, y];
+    }
+
+    // Renk hesapla (haritadaki renderFromMasterData ile aynı mantık)
+    const hasInfo = !!(rec && (rec.isletme || rec.urun));
+    let fillColor = PRODUCT_GROUP_COLORS.bosKayit.color;
+    let strokeColor = '#555';
+    if (hasInfo) {
+        const grp = getProductGroup(rec.urun);
+        fillColor = PRODUCT_GROUP_COLORS[grp] ? PRODUCT_GROUP_COLORS[grp].color : PRODUCT_GROUP_COLORS.diger.color;
+        strokeColor = fillColor;
+    }
+
+    // Poligon çiz (dış hat dolu, iç delikler beyaz)
+    for (const ring of rings) {
+        if (ring.length < 3) continue;
+        const isOuter = ring === outer;
+        ctx.beginPath();
+        const [sx, sy] = toCanvas(ring[0][0], ring[0][1]);
+        ctx.moveTo(sx, sy);
+        for (let i = 1; i < ring.length; i++) {
+            const [x, y] = toCanvas(ring[i][0], ring[i][1]);
+            ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        if (isOuter) {
+            ctx.fillStyle = fillColor + '55';
+            ctx.fill();
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+    }
+
+    // Ada/parsel etiketi (poligon ortasına)
+    const centroid = getParcelInteriorPoint(coords);
+    if (centroid) {
+        const [tx, ty] = toCanvas(centroid[0], centroid[1]);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Arka plan kutusu
+        const labelText = `Ada ${rec?.ada || '?'} / Parsel ${rec?.parsel || '?'}`;
+        const nameText = rec?.isletme || '';
+        const productText = rec?.urun || '';
+
+        ctx.font = 'bold 12px Arial';
+        const tw1 = ctx.measureText(labelText).width;
+        ctx.font = '11px Arial';
+        const tw2 = nameText ? ctx.measureText(nameText).width : 0;
+        const tw3 = productText ? ctx.measureText(productText).width : 0;
+        const maxTw = Math.max(tw1, tw2, tw3);
+        const lineH = 15;
+        const lines = [];
+        if (nameText) lines.push(nameText);
+        lines.push(labelText);
+        if (productText) lines.push(productText);
+        const boxH = lines.length * lineH + 8;
+        const boxW = maxTw + 16;
+
+        ctx.fillStyle = 'rgba(255,255,255,0.88)';
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(tx - boxW / 2, ty - boxH / 2, boxW, boxH, 4);
+        } else {
+            ctx.rect(tx - boxW / 2, ty - boxH / 2, boxW, boxH);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        let yOff = ty - boxH / 2 + lineH / 2 + 3;
+        if (nameText) {
+            ctx.fillStyle = '#333';
+            ctx.font = '11px Arial';
+            ctx.fillText(nameText, tx, yOff);
+            yOff += lineH;
+        }
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 12px Arial';
+        ctx.fillText(labelText, tx, yOff);
+        yOff += lineH;
+        if (productText) {
+            ctx.fillStyle = '#555';
+            ctx.font = '11px Arial';
+            ctx.fillText(productText, tx, yOff);
+        }
+    }
+}
+
 window.generateReport = async () => {
     if (!currentOwnerData) {
         alert('Lütfen önce bir parsel seçin.');
@@ -1803,7 +1961,6 @@ window.generateReport = async () => {
     const tc = currentOwnerData['TC'];
     const ad = currentOwnerData['İşletme Adı'];
 
-    // Eğer aktif bir arama varsa parselleri arama havuzundan, yoksa genel havuzdan seç
     const sourceRecords = isSearchActive ? currentSearchResults : masterRecords;
 
     const ownerParcels = sourceRecords.filter(r =>
@@ -1814,11 +1971,9 @@ window.generateReport = async () => {
     document.getElementById('print-tc').textContent = `: ${tc || '-'}`;
     document.getElementById('print-isim').textContent = `: ${ad || '-'}`;
 
-    // Yılı otomatik güncelle
     const yearEl = document.getElementById('print-year');
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-    // Çiftçi Veri Tabanındaki adres/köy bilgisini al (Yoksa parselin bulunduğu mahalleyi kullan)
     const mahalleler = [...new Set(ownerParcels.map(p => p.adres || p.mahalle))].filter(Boolean).join(', ');
     document.getElementById('print-mahalle').textContent = `: ${mahalleler || '-'}`;
 
@@ -1828,34 +1983,21 @@ window.generateReport = async () => {
     const appMain = document.getElementById('app');
     const printContainer = document.getElementById('print-container');
 
-    // Harita uydu katmanını gizle ve arka planı beyaz yap
-    const tilePane = document.querySelector('.leaflet-tile-pane');
-    if (tilePane) tilePane.style.display = 'none';
-    const mapContainer = document.getElementById('map');
-    const oldBg = mapContainer.style.backgroundColor;
-    mapContainer.style.backgroundColor = 'white';
-
-    // Save current map state
-    const currentCenter = map.getCenter();
-    const currentZoom = map.getZoom();
-
     for (const p of ownerParcels) {
+        const card = document.createElement('div');
+        card.className = 'print-card';
+        card.style.position = 'relative';
+        card.style.padding = '0';
+        card.style.overflow = 'hidden';
+        card.style.border = '1px solid #555';
+
         if (!p.coords || p.coords.length === 0) {
-            // Geometri yoksa sadece bilgi kartı ekle
-            const card = document.createElement('div');
-            card.className = 'print-card';
-            card.style.position = 'relative';
-            card.style.height = '160px';
-            card.style.padding = '0';
-            card.style.overflow = 'hidden';
-            card.style.border = '1px solid #555';
             card.style.display = 'flex';
             card.style.alignItems = 'center';
             card.style.justifyContent = 'center';
             card.style.background = '#f8f9fa';
             card.innerHTML = `
                 <div style="text-align: center; color: #6c757d;">
-                    <div style="font-size: 24px; margin-bottom: 8px;">📍</div>
                     <div style="font-weight: bold; font-family: Arial;">HARİTA SINIRI YOK</div>
                     <div style="font-size: 11px; margin-top: 4px;">(${p.mahalle || '-'} ${p.ada || '-'}/${p.parsel || '-'})</div>
                 </div>
@@ -1863,55 +2005,29 @@ window.generateReport = async () => {
                     ${p.mahalle || '-'} &nbsp;|&nbsp; ${p.ada || '-'}/${p.parsel || '-'} &nbsp;|&nbsp; ${p.urun || '-'}
                 </div>
             `;
-            if (grid) grid.appendChild(card);
-            continue;
+        } else {
+            const cvs = document.createElement('canvas');
+            cvs.width = 400;
+            cvs.height = 260;
+            cvs.style.width = '100%';
+            cvs.style.height = 'auto';
+            cvs.style.display = 'block';
+            drawParcelSketch(cvs, p.coords, p);
+            card.appendChild(cvs);
+
+            const label = document.createElement('div');
+            label.style.cssText = 'position:absolute;top:0;left:0;width:100%;background:rgba(255,255,255,0.85);padding:4px;font-size:11px;text-align:center;border-bottom:1px solid #777;font-family:Arial,sans-serif;font-weight:bold;box-sizing:border-box;';
+            label.innerHTML = `${p.mahalle || '-'} &nbsp;|&nbsp; ${p.ada || '-'}/${p.parsel || '-'} &nbsp;|&nbsp; ${p.urun || '-'}`;
+            card.appendChild(label);
         }
 
-        const bounds = L.polygon(p.coords).getBounds();
-        // zoomu biraz geriye çekelim ki parsel tam sığsın (padding eklendi)
-        map.fitBounds(bounds, { animate: false, padding: [20, 20] });
-
-        // Render wait - haritanın yüklenmesini bekle
-        await new Promise(r => setTimeout(r, 600));
-
-        try {
-            const canvas = await html2canvas(mapContainer, {
-                useCORS: true,
-                logging: false,
-                ignoreElements: (el) => el.classList.contains('leaflet-control-container')
-            });
-
-            const card = document.createElement('div');
-            card.className = 'print-card';
-            card.style.position = 'relative';
-            card.style.height = '160px';
-            card.style.padding = '0';
-            card.style.overflow = 'hidden';
-            card.style.border = '1px solid #555';
-            card.innerHTML = `
-                <img src="${canvas.toDataURL('image/jpeg', 0.8)}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
-                <div style="position: absolute; top: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.85); padding: 4px; font-size: 11px; text-align: center; border-bottom: 1px solid #777; font-family: Arial, sans-serif; font-weight: bold; box-sizing: border-box;">
-                    ${p.mahalle || '-'} &nbsp;|&nbsp; ${p.ada || '-'}/${p.parsel || '-'} &nbsp;|&nbsp; ${p.urun || '-'}
-                </div>
-            `;
-            if (grid) grid.appendChild(card);
-        } catch (err) {
-            console.error("Harita render hatası:", err);
-        }
+        if (grid) grid.appendChild(card);
     }
 
-    // Harita uydu katmanını ve arka planı geri getir
-    if (tilePane) tilePane.style.display = '';
-    mapContainer.style.backgroundColor = oldBg;
-
-    // Ekranı rapor görünümüne al
     if (appMain && printContainer) {
         appMain.classList.add('hidden');
         printContainer.classList.remove('hidden');
     }
-
-    // Restore map state
-    map.setView(currentCenter, currentZoom, { animate: false });
 
     hideLoading();
 
