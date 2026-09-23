@@ -479,7 +479,7 @@ async function renderFromMasterData(records, fitBounds = true) {
                     weight: 2,
                     opacity: 0.8,
                     fillColor: fillColor,
-                    fillOpacity: 0.35
+                    fillOpacity: 0.20
                 }).addTo(map);
 
                 polygon._rec = rec;
@@ -491,6 +491,7 @@ async function renderFromMasterData(records, fitBounds = true) {
                     'Köy': rec.mahalle,
                     'Ürün': rec.urun,
                     'Alan': rec.alan,
+                    'Parsel Alanı': rec.parsel_alani,
                     'Tarım Şekli': rec.tarim_sekli,
                     'Ekim Tarihi': rec.ekim_tarihi,
                     _phone: rec.telefon || null
@@ -656,7 +657,7 @@ function escapeHtml(value) {
 // Aynı mahalle-ada-parsel için birden fazla geometri varsa hepsi vurgulanır.
 function highlightSelectedParsel(feature) {
     mapPolygons.forEach(p => {
-        p.setStyle({ fillOpacity: 0.35, weight: 2 });
+        p.setStyle({ fillOpacity: 0.20, weight: 2 });
     });
     if (!feature) return;
     const key = `${feature.mahalle}-${feature.ada}-${feature.parsel}`;
@@ -895,9 +896,11 @@ async function buildMasterData(progressCb) {
                 tc: '',
                 urun: '',
                 alan: '',
+                parsel_alani: '',
                 tarim_sekli: '',
                 ekim_tarihi: '',
-                telefon: ''
+                telefon: '',
+                adres: ''
             });
             continue;
         }
@@ -919,6 +922,7 @@ async function buildMasterData(progressCb) {
                 tc: pTC,
                 urun: p['Ürün'] || p['ÜRÜN'] || '',
                 alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Ekili Alan (da)'] || p['Ekili Alan'] || p['Alan'] || p['Alanı'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
+                parsel_alani: p['Parsel Alanı(da)'] || p['Parsel Alanı'] || p['Parsel Alan(da)'] || p['Parsel Alan'] || p['Parsel \nAlanı(da)'] || p['Parsel \nAlan\u0131(da)'] || '',
                 tarim_sekli: p['Tarım Şekli'] || '',
                 ekim_tarihi: p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
                 telefon: phone,
@@ -955,6 +959,7 @@ async function buildMasterData(progressCb) {
                 tc: pTC,
                 urun: p['Ürün'] || p['ÜRÜN'] || '',
                 alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Ekili Alan (da)'] || p['Ekili Alan'] || p['Alan'] || p['Alanı'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
+                parsel_alani: p['Parsel Alanı(da)'] || p['Parsel Alanı'] || p['Parsel Alan(da)'] || p['Parsel Alan'] || p['Parsel \nAlanı(da)'] || p['Parsel \nAlan\u0131(da)'] || '',
                 tarim_sekli: p['Tarım Şekli'] || '',
                 ekim_tarihi: p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
                 telefon: phone,
@@ -1628,6 +1633,7 @@ window.showSearchResult = function (index) {
         'Köy': r.mahalle,
         'Ürün': r.urun,
         'Alan': r.alan,
+        'Parsel Alanı': r.parsel_alani,
         'Tarım Şekli': r.tarim_sekli,
         'Ekim Tarihi': r.ekim_tarihi,
         _phone: r.telefon
@@ -1661,9 +1667,15 @@ function showParselInfo(feature, owner) {
                 </div>
                 
                 <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
-                    <span style="color: #94A3B8; font-size: 0.9rem;">Ürün / Alan</span>
+                    <span style="color: #94A3B8; font-size: 0.9rem;">Ürün / Ekilen Alan</span>
                     <span style="color: #2ecc71; font-weight: bold; font-size: 0.95rem;">${owner['Ürün']} &bull; ${owner['Alan']} da</span>
                 </div>
+
+                ${owner['Parsel Alanı'] ? `
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <span style="color: #94A3B8; font-size: 0.9rem;">Parsel Alanı</span>
+                    <span style="color: #f1c40f; font-weight: 500;">${owner['Parsel Alanı']} da</span>
+                </div>` : ''}
                 
                 <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">
                     <span style="color: #94A3B8; font-size: 0.9rem;">Tarım Şekli</span>
@@ -1782,8 +1794,33 @@ function addMeasurePoint(latlng) {
         measureText.innerText = `Mesafe: ${total.toFixed(2)} m`;
     } else if (isMeasuringArea && measurePath.length >= 3) {
         L.polygon(measurePath, { color: "#f1c40f", weight: 2, fillColor: "#f1c40f", fillOpacity: 0.35 }).addTo(measureLayer);
-        // Simplified area calculation
-        measureText.innerText = `Alan ölçülüyor...`;
+        // Shoelace (Gauss) formülü - düz projeksiyon ile coğrafi alan hesabı
+        const n = measurePath.length;
+        let areaM2 = 0;
+        for (let i = 0; i < n; i++) {
+            const p1 = measurePath[i];
+            const p2 = measurePath[(i + 1) % n];
+            const R = 6378137;
+            const lat1 = p1.lat * Math.PI / 180;
+            const lat2 = p2.lat * Math.PI / 180;
+            const lng1 = p1.lng * Math.PI / 180;
+            const lng2 = p2.lng * Math.PI / 180;
+            const x1 = R * lng1 * Math.cos((lat1 + lat2) / 2);
+            const y1 = R * lat1;
+            const x2 = R * lng2 * Math.cos((lat1 + lat2) / 2);
+            const y2 = R * lat2;
+            areaM2 += (x1 * y2 - x2 * y1);
+        }
+        areaM2 = Math.abs(areaM2) / 2;
+        let areaStr;
+        if (areaM2 >= 10000) {
+            areaStr = `${(areaM2 / 10000).toFixed(4)} ha (${(areaM2 / 1000).toFixed(2)} dönüm)`;
+        } else if (areaM2 >= 1000) {
+            areaStr = `${(areaM2 / 1000).toFixed(4)} dönüm (${areaM2.toFixed(1)} m²)`;
+        } else {
+            areaStr = `${areaM2.toFixed(2)} m²`;
+        }
+        measureText.innerText = `Alan: ${areaStr}`;
     }
 }
 
