@@ -1315,3 +1315,55 @@ header.ui-hidden {
     text-shadow: 0 1px 2px rgba(0,0,0,0.9);
     margin-top: 1px;
 }
+
+.parcel-label-inspected {
+    background: linear-gradient(135deg, #a855f7, #7e22ce);
+    color: #ffffff;
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-top: 2px;
+    display: inline-block;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    letter-spacing: 0.5px;
+}
+
+.tespit-btn {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-uninspected {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+}
+
+.btn-uninspected:hover {
+    background: linear-gradient(135deg, #7c3aed, #5b21b6);
+    transform: translateY(-1px);
+}
+
+.btn-inspected {
+    background: linear-gradient(135deg, #059669, #047857);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+}
+
+.btn-inspected:hover {
+    background: linear-gradient(135deg, #047857, #065f46);
+    transform: translateY(-1px);
+}
+

@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.16";
+const APP_VERSION = "3.17";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -35,6 +35,107 @@ let currentSearchIndex = 0;
 let isSearchActive = false;
 let nearbyParcelsLayer = null;
 let nearbyParcelsLabels = [];
+let currentGroupByKey = null;
+
+// Sahada Tespit Edilen Parseller (Cihaz Hafızasında / LocalStorage)
+const INSPECTED_STORAGE_KEY = 'tarmap_inspected_parcels';
+let inspectedParcelsMap = loadInspectedParcels();
+
+function loadInspectedParcels() {
+    try {
+        const stored = localStorage.getItem(INSPECTED_STORAGE_KEY);
+        return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+        console.warn('Tespit verisi okunamadı:', e);
+        return {};
+    }
+}
+
+function saveInspectedParcels() {
+    try {
+        localStorage.setItem(INSPECTED_STORAGE_KEY, JSON.stringify(inspectedParcelsMap));
+    } catch (e) {
+        console.error('Tespit verisi kaydedilemedi:', e);
+    }
+}
+
+function getParcelKey(mahalle, ada, parsel) {
+    if (!mahalle || !ada || !parsel) return '';
+    return `${mahalle.toString().trim().toLowerCase()}-${ada.toString().trim()}-${parsel.toString().trim()}`;
+}
+
+function isParcelInspected(mahalle, ada, parsel) {
+    const key = getParcelKey(mahalle, ada, parsel);
+    return !!(key && inspectedParcelsMap[key]);
+}
+
+window.toggleParcelInspected = function(mahalle, ada, parsel) {
+    const key = getParcelKey(mahalle, ada, parsel);
+    if (!key) return;
+
+    if (inspectedParcelsMap[key]) {
+        delete inspectedParcelsMap[key];
+    } else {
+        const now = new Date();
+        const dateStr = `${now.getDate().toString().padStart(2,'0')}.${(now.getMonth()+1).toString().padStart(2,'0')}.${now.getFullYear()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+        inspectedParcelsMap[key] = {
+            date: dateStr,
+            user: currentUser || 'Saha Çalışanı'
+        };
+    }
+    saveInspectedParcels();
+
+    // Harita üzerindeki polygon rengini ve etiketini anında güncelle
+    const targetPolygon = mapPolygons.find(p => p._rec && getParcelKey(p._rec.mahalle, p._rec.ada, p._rec.parsel) === key);
+    if (targetPolygon) {
+        updatePolygonStyle(targetPolygon);
+        if (targetPolygon._rec) {
+            addParcelLabel(targetPolygon, targetPolygon._rec);
+        }
+    }
+
+    // Bilgi panelini yeniden çiz
+    if (activeFeature && getParcelKey(activeFeature.mahalle, activeFeature.ada, activeFeature.parsel) === key) {
+        showParselInfo(activeFeature, currentOwnerData);
+    }
+};
+
+function updatePolygonStyle(polygon) {
+    if (!polygon || !polygon._rec) return;
+    const rec = polygon._rec;
+    const isInspected = isParcelInspected(rec.mahalle, rec.ada, rec.parsel);
+
+    if (isInspected) {
+        polygon.setStyle({
+            color: '#7e22ce',
+            weight: 3.5,
+            dashArray: '5, 4',
+            fillColor: '#8b5cf6',
+            fillOpacity: 0.45
+        });
+    } else {
+        const hasInfo = !!(rec.isletme || rec.urun);
+        let fillColor;
+        if (!hasInfo) {
+            fillColor = PRODUCT_GROUP_COLORS.bosKayit.color;
+        } else {
+            const groupKey = `${rec.mahalle}-${rec.ada}-${rec.parsel}`;
+            const groups = currentGroupByKey ? currentGroupByKey.get(groupKey) : null;
+            const isKarisik = groups && groups.size > 1;
+            const grp = getProductGroup(rec.urun);
+            fillColor = isKarisik
+                ? PRODUCT_GROUP_COLORS.karisik.color
+                : (PRODUCT_GROUP_COLORS[grp] ? PRODUCT_GROUP_COLORS[grp].color : PRODUCT_GROUP_COLORS.diger.color);
+        }
+        polygon.setStyle({
+            color: fillColor,
+            weight: 2,
+            dashArray: null,
+            fillColor: fillColor,
+            fillOpacity: 0.20
+        });
+    }
+}
 
 let selectedFiles = {
     gml: null,
@@ -443,6 +544,7 @@ async function renderFromMasterData(records, fitBounds = true) {
             if (!groupByKey.has(key)) groupByKey.set(key, new Set());
             groupByKey.get(key).add(getProductGroup(rec.urun));
         });
+        currentGroupByKey = groupByKey;
 
         showLoading('Harita hazırlanıyor...');
         const total = records.length;
@@ -483,6 +585,7 @@ async function renderFromMasterData(records, fitBounds = true) {
                 }).addTo(map);
 
                 polygon._rec = rec;
+                updatePolygonStyle(polygon);
 
                 const feature = { ada: rec.ada, parsel: rec.parsel, mahalle: rec.mahalle, coords: rec.coords };
                 const owner = hasInfo ? {
@@ -600,6 +703,9 @@ function addParcelLabel(polygon, rec) {
     if (rec.isletme) lines.push(`<div class="parcel-label-name">${escapeHtml(rec.isletme)}</div>`);
     lines.push(`<div class="parcel-label-ref">Ada ${rec.ada} / Parsel ${rec.parsel}</div>`);
     if (rec.urun) lines.push(`<div class="parcel-label-product">${escapeHtml(rec.urun)}</div>`);
+    if (isParcelInspected(rec.mahalle, rec.ada, rec.parsel)) {
+        lines.push(`<div class="parcel-label-inspected">✓ TESPİT EDİLDİ</div>`);
+    }
 
     const icon = L.divIcon({
         className: 'parcel-label-icon',
@@ -657,14 +763,15 @@ function escapeHtml(value) {
 // Aynı mahalle-ada-parsel için birden fazla geometri varsa hepsi vurgulanır.
 function highlightSelectedParsel(feature) {
     mapPolygons.forEach(p => {
-        p.setStyle({ fillOpacity: 0.20, weight: 2 });
+        updatePolygonStyle(p);
     });
     if (!feature) return;
     const key = `${feature.mahalle}-${feature.ada}-${feature.parsel}`;
     mapPolygons.forEach(p => {
         const rec = p._rec;
         if (rec && `${rec.mahalle}-${rec.ada}-${rec.parsel}` === key) {
-            p.setStyle({ fillOpacity: 0.75, weight: 3 });
+            const isInspected = isParcelInspected(rec.mahalle, rec.ada, rec.parsel);
+            p.setStyle({ fillOpacity: isInspected ? 0.70 : 0.75, weight: 3.5 });
         }
     });
 }
@@ -1698,6 +1805,20 @@ function showParselInfo(feature, owner) {
     } else {
         html += `<div style="text-align: center; padding: 20px 0; color: #94A3B8; font-style: italic;">Bu parsel için üretim kaydı bulunamadı.</div>`;
     }
+
+    // Sahada Tespit Edildi Butonu
+    const isInspected = isParcelInspected(feature.mahalle, feature.ada, feature.parsel);
+    const inspectInfo = isInspected ? inspectedParcelsMap[getParcelKey(feature.mahalle, feature.ada, feature.parsel)] : null;
+
+    html += `
+        <div style="margin-top: 12px;">
+            <button onclick="toggleParcelInspected('${escapeHtml(feature.mahalle)}', '${feature.ada}', '${feature.parsel}')" class="tespit-btn ${isInspected ? 'btn-inspected' : 'btn-uninspected'}">
+                ${isInspected 
+                    ? `✓ TESPİT EDİLDİ (${inspectInfo?.date || ''}) - KALDIR` 
+                    : `🔍 SAHADA TESPİT EDİLDİ OLARAK İŞARETLE`}
+            </button>
+        </div>
+    `;
 
     // Aktif arama sonucu varsa (birden fazla parsel) her zaman navigasyon göster
     if (currentSearchResults.length > 1) {
