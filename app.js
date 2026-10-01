@@ -1,7 +1,7 @@
 // Configuration
 // her güncellemeden sonra APP_VERSION 0.01 arttırılsın
 const APP_NAME = "TarMap";
-const APP_VERSION = "3.18";
+const APP_VERSION = "3.19";
 
 // SUPABASE AYARLARI (Supabase panelinden alıp buraya yapıştırın)
 const SUPABASE_URL = 'https://tjedetetzqenwdlqgwiv.supabase.co';
@@ -1066,7 +1066,7 @@ async function buildMasterData(progressCb) {
                 tc: pTC,
                 urun: p['Ürün'] || p['ÜRÜN'] || '',
                 alan: p['Kullanılan  Alan(da)'] || p['Kullanılan Alan(da)'] || p['Kullanılan Alan'] || p['Ekili Alan (da)'] || p['Ekili Alan'] || p['Alan'] || p['Alanı'] || p['Tapu Alanı'] || p['ParselAlanı'] || p['Alan (da)'] || '',
-                parsel_alani: p['Parsel Alanı(da)'] || p['Parsel Alanı'] || p['Parsel Alan(da)'] || p['Parsel Alan'] || p['Parsel \nAlanı(da)'] || p['Parsel \nAlan\u0131(da)'] || '',
+                parsel_alani: p['Parsel Alanı(da)'] || p['Parsel Alanı'] || p['Parsel Alan(da)'] || p['Parsel Alan'] || p['Parsel \nAlanı(da)'] || p['Parsel \nAlan\u0131(da)'] || p['Parsel\nAlanı(da)'] || p['Parsel\nAlan\u0131(da)'] || p['Parsel\r\nAlanı(da)'] || p['Parsel\r\nAlan\u0131(da)'] || p['Parsel \r\nAlanı(da)'] || p['Parsel \r\nAlan\u0131(da)'] || '',
                 tarim_sekli: p['Tarım Şekli'] || '',
                 ekim_tarihi: p['Ekim Tarihi'] || p['EKİM TARİHİ'] || '',
                 telefon: phone,
