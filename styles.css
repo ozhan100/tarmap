@@ -188,6 +188,36 @@ button:hover {
     transform: none;
 }
 
+/* Eski sürüm uyarı bandı (önbellekten eski kod çalışıyorsa gösterilir) */
+.stale-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #b45309;
+    color: #fff;
+    font-size: 0.8rem;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
+
+.stale-update-btn {
+    background: #fff;
+    color: #92400e;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-weight: bold;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
 /* Settings Modal */
 .settings-card {
     background: var(--card-bg);

@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="TarMap">
-    <link rel="stylesheet" href="styles.css?v=3.18">
+    <link rel="stylesheet" href="styles.css?v=3.20">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <!-- Leaflet for Maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -28,13 +28,18 @@
 </head>
 
 <body>
+    <!-- Eski sürüm uyarı bandı (önbellekten eski kod çalışıyorsa görünür olur) -->
+    <div id="stale-version-banner" class="stale-banner hidden">
+        <span>⚠️ Eski sürüm önbellekten çalışıyor (Çalışan: <b id="stale-running">?</b>, Güncel: <b id="stale-latest">?</b>). Yeni özellikler görünmez.</span>
+        <button onclick="forceUpdate()" class="stale-update-btn">🔄 Güncelle</button>
+    </div>
     <!-- Login Screen -->
     <div id="login-screen" class="overlay">
         <div class="login-card">
             <div class="logo-container">
                 <div class="logo-icon">🚜</div>
                 <h1>TarMap</h1>
-                <div class="version-tag" id="login-version">V3.18</div>
+                <div class="version-tag" id="login-version">V3.20</div>
             </div>
             <p>Giriş yapmak için şifrenizi giriniz.</p>
             <div class="input-group">
@@ -58,7 +63,7 @@
             <div class="brand">
                 <span class="icon">🌾</span>
                 <span class="title">TarMap</span>
-                <span class="header-version" id="header-version">V3.18</span>
+                <span class="header-version" id="header-version">V3.20</span>
             </div>
             <div class="controls">
                 <button id="measure-dist" title="Mesafe Ölç" class="tool-btn">📏</button>
@@ -280,9 +285,9 @@
 
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="auto-load.js?v=3.18"></script>
-    <script src="admin-panel.js?v=3.18"></script>
-    <script src="app.js?v=3.18"></script>
+    <script src="auto-load.js?v=3.20"></script>
+    <script src="admin-panel.js?v=3.20"></script>
+    <script src="app.js?v=3.20"></script>
     <script>
         async function forceUpdate() {
             const btn = document.getElementById('force-update-btn');
@@ -303,6 +308,26 @@
             // Zorla yenile
             location.reload(true);
         }
+
+        // Çalışan kodun önbellekten eski kalıp kalmadığını denetler.
+        // Sunucudaki güncel app.js içindeki APP_VERSION ile çalışan
+        // sürümü karşılaştırır; farklıysa uyarı bandını gösterir.
+        // Çevrimdışıyken sessizce geçilir (yanlış uyarı verilmez).
+        async function checkAppFreshness() {
+            try {
+                const running = (typeof APP_VERSION !== 'undefined') ? APP_VERSION : null;
+                if (!running) return;
+                const res = await fetch('app.js?surum-kontrol=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) return;
+                const txt = await res.text();
+                const m = txt.match(/const APP_VERSION\s*=\s*"([^"]+)"/);
+                if (!m || m[1] === running) return;
+                document.getElementById('stale-running').textContent = running;
+                document.getElementById('stale-latest').textContent = m[1];
+                document.getElementById('stale-version-banner')?.classList.remove('hidden');
+            } catch (e) { /* sessiz geç */ }
+        }
+        window.addEventListener('load', () => { setTimeout(checkAppFreshness, 1500); });
     </script>
 </body>
 
